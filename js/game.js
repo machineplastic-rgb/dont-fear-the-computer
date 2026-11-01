@@ -15,7 +15,8 @@
     this.tier = this.n === 13 ? 0 : (p.tier || 0);
     this.cfg = G.scaleConfig(this.L, this.tier);
     this.block = this.L.block;
-    this.wall = G.makeWallpaper(this.block, G.W, G.H, 1000 + this.n * 77);
+    this.wall = this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block);
+    this.stage = -1; this.stageFx = false;
     this.wins = []; this.ghosts = []; this.parts = []; this.pops = [];
     this.state = 'intro'; this.st = 0; this.elapsed = 0;
     this.time = this.cfg.time; this.closed = 0; this.score = 0; this.combo = 0; this.lastClose = -9; this.maxCombo = 0;
@@ -29,7 +30,7 @@
   };
   S.exit = function () { A().muffle(false); };
   S.resize = function () {
-    this.wall = G.makeWallpaper(this.block, G.W, G.H, 1000 + this.n * 77);
+    this.wall = this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block);
     const ar = area();
     this.wins.forEach((w) => { w.w = Math.min(w.w, ar.w); w.x = G.clamp(w.x, ar.x, ar.x + ar.w - w.w); w.y = G.clamp(w.y, ar.y, ar.y + ar.h - w.h); });
     if (this.intro) this.intro = this.makeIntro();
@@ -43,8 +44,42 @@
   };
   S.applyFx = function (prog) {
     const b = this.block;
+    if (this.stageFx) { G.fx.abBase = 1.2 + prog * 1.2; G.fx.glitchBase = 0.04 + prog * 0.06; return; }
     G.fx.abBase = b === 3 ? 0.8 + prog * 1.2 : 0;
     G.fx.glitchBase = b === 3 ? 0.03 + prog * 0.06 : 0;
+  };
+
+  // ======================= NIVEL 1: 3 rondas (B/N → +azul → +verde con glitch) =======================
+  S.startStage = function (i) {
+    const sd = this.cfg.stages[i];
+    this.stage = i; this.stageClosed = 0;
+    Object.assign(this.cfg, { quota: sd.quota, time: sd.time, keep: sd.keep, maxOn: sd.maxOn, spawn: sd.spawn, types: sd.types, fake: sd.fake || 0, move: sd.move || 0, tele: sd.tele || 0 });
+    this.block = sd.block; this.stageFx = !!sd.fx;
+    this.wall = G.randomWallpaper(sd.block);
+    this.time = sd.time; this.spawnT = 0.3; this.lastBeep = 99;
+    A().intensity(0.2 + i * 0.35);
+  };
+  S.updateStage = function (dt) {
+    this.sct += dt;
+    if (this.wins.length && this.sct < 0.8) { this.swt -= dt; if (this.swt <= 0) { this.closeWin(this.wins[this.wins.length - 1], true); A().sfx('close', 6); this.swt = 0.05; } return; }
+    if (this.sct > 1.9) { this.state = 'play'; G.pulse({ glitch: 0.6, ab: 3 }); }
+  };
+  S.nextStage = function () {
+    this.state = 'stagechange'; this.sct = 0; this.swt = 0.1;
+    this.startStage(this.stage + 1);
+    A().sfx('cmd'); G.pulse({ glitch: 0.8, ab: 4, flash: 0.2, flashCol: W });
+  };
+  S.drawStageBanner = function () {
+    if (this.sct < 0.5) return;
+    const ar = area(), sd = this.cfg.stages[this.stage];
+    const fs = Math.max(20, Math.floor(G.W / 6));
+    const spr = G.fsprite('ROUND ' + (this.stage + 1), 'italic 900 ' + fs + 'px ' + G.FONT_HEAVY, W, 120);
+    const bw = Math.min(G.W - 16, spr.width + 30), bh = spr.height + 36;
+    const bx = Math.round(G.W / 2 - bw / 2), by = Math.round(ar.y + ar.h * 0.4 - bh / 2);
+    const col = [K, B, Gr][sd.block] || K;
+    G.rect(bx + 3, by + 3, bw, bh, K); G.rect(bx, by, bw, bh, col); G.box(bx, by, bw, bh, W);
+    G.ctx().drawImage(spr, Math.round(G.W / 2 - spr.width / 2), by + 8);
+    G.text('CLOSE ' + sd.quota + ' WINDOWS', G.W / 2, by + bh - 16, sd.block === 2 ? K : W, { al: 'c' });
   };
 
   // ======================= INTRO =======================
@@ -84,6 +119,7 @@
     this.state = 'play'; this.intro = null;
     A().sfx('glitch'); G.pulse({ glitch: 0.6, ab: 3 });
     if (this.cfg.mode === 'micro') { this.startRound(); return; }
+    if (this.cfg.stages) this.startStage(0);
     if (this.cfg.variant === 'boss') this.spawnBoss();
   };
 
@@ -192,7 +228,10 @@
       A().sfx('spawn', 2);
     }
     const c = this.cfg;
-    if (c.quota && this.closed >= c.quota && c.variant !== 'boss') this.win();
+    if (c.stages) {
+      this.stageClosed++;
+      if (this.state === 'play' && this.stageClosed >= c.quota) { if (this.stage < c.stages.length - 1) this.nextStage(); else this.win(); }
+    } else if (c.quota && this.closed >= c.quota && c.variant !== 'boss') this.win();
   };
   S.penalty = function (sec, x, y, txt) {
     this.time = Math.max(0, this.time - sec);
@@ -241,6 +280,7 @@
     if (this.startDown > 0) this.startDown -= dt;
     if (this.cfg.mode === 'serpent') return this.updateSnake(dt);
     if (this.cfg.mode === 'micro' && this.state === 'play') return this.updateMicro(dt);
+    if (this.state === 'stagechange') return this.updateStage(dt);
     if (this.state === 'winning') {
       this.wt -= dt;
       if (this.wt <= 0) {
@@ -251,6 +291,7 @@
     }
     if (this.state === 'clear') {
       if (this.n === 12) { this.takeover += dt; G.fx.glitchBase = Math.min(1, this.takeover * 0.35); G.fx.abBase = 1 + this.takeover * 2; if (this.takeover > 2.6) G.go('game', { level: 13 }); }
+      else { G.fx.abBase = Math.min(G.fx.abBase, 0.4); G.fx.glitchBase = 0; } // que se lea bien la ventana de resultados
       return;
     }
     if (this.state === 'losing') { this.lt -= dt; if (this.lt <= 0) G.go('gameover', { level: this.n, reason: this.loseReason, closed: this.closed, score: this.score, left: this.cfg.mode === 'micro' ? this.rounds - this.closed : this.wins.length }); return; }
@@ -437,13 +478,19 @@
     g.drawImage(this.wall, 0, 0);
     if (this.block === 3 && Math.random() < 0.08) { const y = G.irand(0, G.H - 10), h = G.irand(2, 8); g.drawImage(this.wall, 0, y, G.W, h, G.irand(-12, 12), y, G.W, h); }
     G.drawDesktopIcons(this.block, area().y);
+    // las ventanas flotan un poco con el giroscopio
+    const to = this.tiltOff(), T = G.ctx();
+    T.save(); T.translate(to.x, to.y);
     for (const w of this.wins) this.drawWin(w);
     for (const gh of this.ghosts) { const k = 1 - gh.t / 0.14; for (let i = 0; i < 2; i++) { const kk = k - i * 0.25; if (kk <= 0) continue; const ww = gh.w * kk, hh = gh.h * kk; G.box(gh.x + (gh.w - ww) / 2, gh.y + (gh.h - hh) / 2, ww, hh, gh.col); } }
     for (const p of this.parts) G.rect(p.x, p.y, 2, 2, p.col);
     for (const p of this.pops) G.text(p.txt, p.x, p.y - p.t * 22, p.col, { al: 'c', b: true });
+    T.restore();
+    if (this.state === 'stagechange') this.drawStageBanner();
     // HUD en barra de tareas
     const c = this.cfg, info = { time: this.time, startDown: this.startDown > 0 };
     if (c.variant === 'boss') { info.label = 'VIRUS ' + (this.boss ? this.boss.hp : 0); info.meter = c.cap ? this.wins.length / c.cap : null; }
+    else if (c.stages) info.label = 'R' + (this.stage + 1) + ' ' + Math.min(this.stageClosed || 0, c.quota) + '/' + c.quota;
     else if (c.quota) { info.label = this.closed + '/' + c.quota; if (c.cap) info.meter = this.wins.length / c.cap; }
     else { info.label = 'LOAD'; info.meter = this.wins.length / c.cap; }
     G.drawTaskbar(this.block, info);
@@ -453,6 +500,7 @@
     if (this.combo >= 4 && this.state === 'play') G.text('COMBO x' + Math.min(5, 1 + Math.floor(this.combo / 4)), G.W - 4, area().y + 2, this.block === 0 ? W : Gr, { al: 'r' });
   };
   S.dim = function () { G.drect(0, 0, G.W, G.taskbarY(), 8, K, null); };
+  S.tiltOff = function () { const a = this.cfg.tilt || 0; return { x: Math.round(G.tilt.x * a), y: Math.round(G.tilt.y * a) }; };
   S.drawPause = function () {
     const w = this.pwin, s = w.st, r = G.drawFrame(w);
     G.text('- PAUSE -', r.x + r.w / 2, r.y + 6, s.tx, { al: 'c', b: true });
@@ -497,6 +545,7 @@
     if (this.state !== 'play') return;
     if (y >= G.taskbarY()) { if (G.inR(x, y, G.startRect(), 3)) { this.startDown = 0.15; this.pause(); } return; }
     if (this.cfg.mode === 'micro') return this.tapMicro(x, y);
+    const to = this.tiltOff(); x -= to.x; y -= to.y;
     for (let i = this.wins.length - 1; i >= 0; i--) {
       const w = this.wins[i];
       if (w.xmode !== 'none') {

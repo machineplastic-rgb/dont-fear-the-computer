@@ -188,6 +188,7 @@ window.G = window.G || {};
     if (dt > 0.1) dt = 0.1; if (dt < 0) dt = 0;
     G.time += dt;
     decay(dt);
+    if (G.tilt) { const k = Math.min(1, dt * 7); G.tilt.x += (G.tilt.tx - G.tilt.x) * k; G.tilt.y += (G.tilt.ty - G.tilt.y) * k; }
     try {
       const sc = G.scene;
       if (sc) { sc.t = (sc.t || 0) + dt; if (sc.update) sc.update(dt); }
@@ -213,7 +214,31 @@ window.G = window.G || {};
   }, { passive: false });
   scr.addEventListener('pointermove', (e) => { const sc = G.scene; if (sc && sc.move) { const p = toLogical(e); sc.move(p.x, p.y, e); } });
   ['pointerup', 'pointercancel'].forEach((ev) => scr.addEventListener(ev, (e) => { const sc = G.scene; if (sc && sc.up) { const p = toLogical(e); sc.up(p.x, p.y, e); } }));
-  ['pointerup', 'touchend', 'click'].forEach((ev) => window.addEventListener(ev, () => { if (G.audio) G.audio.unlock(); }, { passive: true }));
+  ['pointerup', 'touchend', 'click'].forEach((ev) => window.addEventListener(ev, () => {
+    if (G.audio) G.audio.unlock();
+    if (G._tiltPending) { G._tiltPending = false; G.enableTilt(); }
+  }, { passive: true }));
+
+  // ---------- giroscopio (opcional: las ventanas flotan un poco al inclinar el móvil) ----------
+  G.tilt = { x: 0, y: 0, tx: 0, ty: 0, on: false, bx: null, by: null };
+  function onOri(e) {
+    if (e.gamma == null || e.beta == null) return;
+    const t = G.tilt;
+    if (t.bx == null) { t.bx = e.gamma; t.by = e.beta; }
+    t.bx += (e.gamma - t.bx) * 0.004; t.by += (e.beta - t.by) * 0.004; // se recentra despacio
+    t.tx = G.clamp((e.gamma - t.bx) / 22, -1, 1); t.ty = G.clamp((e.beta - t.by) / 22, -1, 1);
+  }
+  G.enableTilt = function () {
+    if (G.tilt.on) return;
+    const start = () => { if (G.tilt.on) return; G.tilt.on = true; window.addEventListener('deviceorientation', onOri); };
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then((s) => { if (s === 'granted') start(); }).catch(() => { });
+      } else if (window.DeviceOrientationEvent) start();
+    } catch (e) { }
+  };
+  // en iPhone el permiso tiene que pedirse dentro del mismo toque: se marca y se pide al soltar el dedo
+  G.requestTilt = function () { G._tiltPending = true; };
   window.addEventListener('keydown', (e) => {
     if (G.audio) G.audio.unlock();
     const sc = G.scene; if (sc && sc.key) { sc.key(e.key); }

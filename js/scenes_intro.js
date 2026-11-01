@@ -42,7 +42,7 @@
     },
     tap() {
       if (!this.armed || this.press > 0) return;
-      A().sfx('power'); A().warmAll(); G.pulse({ ab: 3 });
+      A().sfx('power'); A().warmAll(); G.requestTilt(); G.pulse({ ab: 3 });
       this.press = 0.2;
     },
     key(k) { if (k === 'Enter' || k === ' ') this.tap(); },

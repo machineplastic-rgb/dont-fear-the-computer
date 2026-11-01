@@ -259,13 +259,13 @@
         if (gi >= 0 && gi < k) { G.px(x + 1, y + 2, B); G.px(x + 2, y + 3, B); G.px(x + 3, y + 2, B); G.px(x + 3, y + 1, B); }
       }
     },
-    6(t) { // INTRUDER: una carpeta infectada parpadea
-      const bad = Math.floor(t * 3) % 2 === 0;
-      for (let i = 0; i < 9; i++) {
-        const x = 2 + (i % 3) * 7, y = 1 + Math.floor(i / 3) * 6, inf = i === 5 && bad;
-        G.rect(x, y + 1, 6, 4, inf ? B : W); G.box(x, y + 1, 6, 4, K); G.rect(x, y, 3, 1, K);
-        if (inf) G.px(x + 4, y + 2, W);
-      }
+    6(t) { // DEBUG: el virus asoma por detrás de una ventana
+      const peek = Math.round((Math.sin(t * 2.4) + 1) * 4);
+      const bx = 13 + peek, by = 7;
+      G.rect(bx, by, 5, 5, B); G.box(bx - 1, by - 1, 7, 7, K); G.px(bx + 1, by + 1, W); G.px(bx + 3, by + 1, W);
+      G.px(bx - 2, by + 1, K); G.px(bx - 2, by + 4, K); G.px(bx + 6, by + 1, K); G.px(bx + 6, by + 4, K); G.px(bx + 1, by - 2, K); G.px(bx + 4, by - 2, K);
+      G.rect(2, 3, 14, 13, W); G.box(2, 3, 14, 13, K); G.rect(2, 3, 14, 3, K); G.px(14, 4, W);
+      G.rect(4, 8, 8, 1, K); G.rect(4, 10, 6, 1, K); G.rect(4, 12, 9, 1, K);
     },
     7(t) { // SPOT.DIFF: dos ventanas casi iguales
       const blink = Math.floor(t * 2.5) % 2 === 0;
@@ -286,16 +286,11 @@
       const [ax, ay] = pts[k], [bx, by] = pts[k + 1], f = d / segs[k];
       G.drawSpr('mcur', Math.round(ax + (bx - ax) * f), Math.round(ay + (by - ay) * f) - 1, { '#': K, w: Gr });
     },
-    9(t) { // MINEFIELD: casillas, números y bandera
-      const cov = [1, 2, 6, 7, 11];
-      for (let i = 0; i < 12; i++) {
-        const x = 1 + (i % 4) * 6, y = 2 + Math.floor(i / 4) * 6;
-        if (cov.includes(i)) { G.rect(x, y, 6, 6, L); G.rect(x, y, 6, 1, W); G.rect(x, y, 1, 6, W); G.rect(x, y + 5, 6, 1, K); G.rect(x + 5, y, 1, 6, K); }
-        else { G.rect(x, y, 6, 6, W); G.box(x, y, 6, 6, L); }
-      }
-      G.rect(3, 3, 1, 4, B); G.rect(15, 10, 2, 1, K); G.rect(16, 11, 1, 1, K); G.rect(15, 12, 2, 1, K); G.rect(3, 15, 1, 4, B);
-      G.rect(15, 3, 1, 4, K); G.tri(16, 3, 19, 4, 16, 6, Gr);
-      if (Math.floor(t * 2) % 3 === 0) { G.circ(22, 10, 1, K, K); }
+    9(t) { // FORCEQUIT: ventana colgada que deja rastro
+      const o = Math.floor(t * 6) % 4;
+      for (let k = 3; k >= 0; k--) { const x = 1 + k * 2 + (k === 0 ? 0 : 0), y = 1 + k * 2; G.rect(x, y, 15, 12, k === 0 ? W : L); G.box(x, y, 15, 12, K); G.rect(x, y, 15, 3, K); }
+      G.drawSpr(o % 2 ? 'hg1' : 'hg2', 5, 5, { '#': K, o: K });
+      const f = Math.floor(((t * 0.8) % 1) * 18); G.box(3, 16, 20, 4, K); G.rect(4, 17, f, 2, Gr);
     },
     10(t) { // ECHO: baldosas que se encienden en secuencia
       const seq = [0, 3, 1, 2], k = seq[Math.floor(t * 3) % 4], cols = [Gr, B, K, L];
@@ -305,18 +300,18 @@
         if (lit) G.box(x - 1, y - 1, 12, 10, K);
       }
     },
-    11(t) { // NOTIFY: avisos que caen a la línea
-      G.rect(6, 0, 12, 20, K); const ph = (t * 1.4) % 1;
-      G.rect(4, 15, 16, 2, ph > 0.85 ? W : B);
-      for (let k = 0; k < 3; k++) { const y = Math.floor(((t * 1.4 + k / 3) % 1) * 18) - 3; G.rect(8, y, 8, 4, W); G.rect(8, y, 8, 1, Gr); }
+    11(t) { // OK.EXE: el botón OK se escapa
+      G.rect(1, 2, 16, 10, W); G.box(1, 2, 16, 10, K); G.rect(1, 2, 16, 3, K); G.drawSpr('mcur', 3, 6, { '#': K, w: K });
+      const bx = 12 + Math.round(Math.sin(t * 3.1) * 5), by = 12 + Math.round(Math.cos(t * 2.3) * 3);
+      G.rect(bx - 1, by, 10, 6, Gr); G.box(bx - 1, by, 10, 6, K); G.px(bx + 2, by + 2, K); G.px(bx + 2, by + 3, K); G.px(bx + 5, by + 2, K); G.px(bx + 6, by + 3, K);
+      G.drawSpr('mcur', Math.min(21, bx + 10 - Math.round(Math.sin(t * 3.1 + 0.6) * 3)), by + 5, { '#': K, w: W });
     },
-    12(t) { // BSOD.RUN: esquivar bloques
-      for (let k = 0; k < 3; k++) {
-        const x = (k * 8 + Math.floor(t * 1.2 + k) * 7) % 18, y = Math.floor(((t * 1.2 + k * 0.33) % 1) * 24) - 5;
-        G.rect(x, y, 7, 4, B); G.px(x + 2, y + 1, W); G.px(x + 4, y + 2, W);
-      }
-      const cx = 9 + Math.round(Math.sin(t * 3) * 7);
-      G.rect(cx, 14, 6, 5, K); G.rect(cx + 1, 15, 4, 3, Gr); G.rect(cx + 2, 19, 2, 1, K);
+    12(t) { // ERASE: la goma destapa el dibujo
+      G.rect(1, 1, 22, 18, W); G.box(1, 1, 22, 18, K);
+      G.circ(12, 10, 5, null, K); G.px(10, 9, K); G.px(14, 9, K); G.rect(10, 12, 5, 1, K);
+      const ex = 3 + Math.round(((t * 0.6) % 1) * 15);
+      for (let x = 2; x < 22; x++) if (x > ex + 4) G.drect(x, 2, 1, 16, 10, K, L);
+      G.rect(ex, 7, 6, 5, B); G.box(ex, 7, 6, 5, K);
     },
   };
 
@@ -335,6 +330,20 @@
     { top: W, tt: B, ib: Gr, grid: K, bot: L, nc: B, bt: B },
     { top: B, tt: Gr, ib: W, grid: L, bot: L, nc: B, bt: K },
   ];
+
+  // caché de fondos (bloque + semilla + tamaño)
+  const wpCache = new Map();
+  G.wallpaper = function (block, seed) {
+    const k = block + '_' + seed + '_' + G.W + 'x' + G.H;
+    let c = wpCache.get(k);
+    if (!c) { c = G.makeWallpaper(block, G.W, G.H, seed); wpCache.set(k, c); if (wpCache.size > 12) wpCache.delete(wpCache.keys().next().value); }
+    return c;
+  };
+  // fondo al azar entre los desbloqueados hasta ese bloque de color
+  G.randomWallpaper = function (maxBlock) {
+    const b = G.irand(0, Math.min(3, maxBlock));
+    return G.wallpaper(b, 1000 + G.irand(0, 5) * 131);
+  };
 
   // ---------- wallpapers: nubes con trama pixel (generadas, no copiadas) ----------
   G.makeWallpaper = function (block, Wd, Hd, seed) {

@@ -1,8 +1,8 @@
 // Service worker: el juego funciona sin conexión tras la primera carga.
-const CACHE_NAME = 'dftc-v2';
+const CACHE_NAME = 'dftc-v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
-  'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/audio.js', 'js/ui.js',
+  'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/deskart.js', 'js/audio.js', 'js/ui.js',
   'js/levels.js', 'js/scenes_intro.js', 'js/scenes_menu.js', 'js/game.js', 'js/micro.js', 'js/main.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
