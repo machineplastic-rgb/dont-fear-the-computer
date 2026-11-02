@@ -5,7 +5,7 @@ window.G = window.G || {};
   // Paleta oficial del juego (medida del dossier)
   G.PAL = { G: '#46ff00', B: '#0000ff', L: '#dddddd', K: '#000000', W: '#ffffff' };
   G.time = 0;
-  G.VERSION = 'V5'; // versión visible en la pantalla de carga y en SYSTEM
+  G.VERSION = 'V6'; // versión visible en la pantalla de carga y en SYSTEM
 
   const scr = document.getElementById('screen');
   const sg = scr.getContext('2d', { alpha: false });
@@ -47,10 +47,16 @@ window.G = window.G || {};
   function noSmooth(x) { x.imageSmoothingEnabled = false; x.webkitImageSmoothingEnabled = false; }
 
   // ---------- overlays de pantalla (scanlines + viñeta) ----------
-  let scan = null, vign = null, noiseTile = null;
+  let scan = null, vign = null, noiseTile = null, crtPat = null, grain = null;
   function buildOverlays() {
     const P = G.P;
     scan = null;
+    // trama fina de tubo (a resolución real): líneas horizontales + rejilla RGB, se pinta multiplicando (no aclara el negro)
+    { const per = G.dpr >= 2 ? 3 : 2, c = document.createElement('canvas'); c.width = 3; c.height = per; const x = c.getContext('2d');
+      ['rgb(255,232,232)', 'rgb(232,255,232)', 'rgb(232,232,255)'].forEach((col, i) => { x.fillStyle = col; x.fillRect(i, 0, 1, per); });
+      x.fillStyle = 'rgb(165,165,180)'; x.fillRect(0, per - 1, 3, 1);
+      crtPat = sg.createPattern(c, 'repeat'); }
+    if (!grain) { grain = document.createElement('canvas'); grain.width = grain.height = 256; const x = grain.getContext('2d'), id = x.createImageData(256, 256); for (let i = 0; i < id.data.length; i += 4) { const v = Math.random() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; } x.putImageData(id, 0, 0); }
     if (P >= 3) {
       const c = document.createElement('canvas'); c.width = 1; c.height = P;
       const x = c.getContext('2d'); x.fillStyle = 'rgba(0,0,0,0.20)'; x.fillRect(0, P - 1, 1, 1);
@@ -96,7 +102,7 @@ window.G = window.G || {};
   };
 
   // ---------- efectos ----------
-  G.fx = { ab: 0, abBase: 0, glitch: 0, glitchBase: 0, shake: 0, flash: 0, flashCol: '#ffffff', noise: 0, scan: true, vign: true };
+  G.fx = { ab: 0, abBase: 0, glitch: 0, glitchBase: 0, shake: 0, flash: 0, flashCol: '#ffffff', noise: 0, scan: true, vign: true, crt: false };
   G.pulse = function (o) { for (const k in o) { if (k === 'flashCol') G.fx.flashCol = o[k]; else G.fx[k] = Math.max(G.fx[k] || 0, o[k]); } };
   function decay(dt) {
     const f = G.fx;
@@ -164,6 +170,11 @@ window.G = window.G || {};
     if (f.shake > 0.5) { sx = Math.round((Math.random() - 0.5) * f.shake) * P; sy = Math.round((Math.random() - 0.5) * f.shake) * P; }
     sg.drawImage(src, 0, 0, W, H, G.ox + sx, G.oy + sy, W * P, H * P);
     if (scan && f.scan) { sg.save(); sg.translate(G.ox, G.oy); sg.fillStyle = scan; sg.fillRect(0, 0, W * P, H * P); sg.restore(); }
+    if (f.crt && crtPat) { // textura de tubo: rejilla fina y grano
+      sg.save(); sg.globalCompositeOperation = 'multiply'; sg.fillStyle = crtPat; sg.fillRect(G.ox, G.oy, W * P, H * P);
+      if (grain) { sg.globalCompositeOperation = 'overlay'; sg.globalAlpha = 0.14; const gx = -Math.floor(Math.random() * 256), gy = -Math.floor(Math.random() * 256); for (let y = G.oy + gy; y < G.oy + H * P; y += 256) for (let x = G.ox + gx; x < G.ox + W * P; x += 256) sg.drawImage(grain, x, y); }
+      sg.restore();
+    }
     if (f.flash > 0) { sg.globalAlpha = Math.min(1, f.flash); sg.fillStyle = f.flashCol; sg.fillRect(G.ox, G.oy, W * P, H * P); sg.globalAlpha = 1; }
     if (vign && f.vign) sg.drawImage(vign, G.ox, G.oy);
   }
@@ -176,7 +187,7 @@ window.G = window.G || {};
     if (prev && prev.exit) prev.exit();
     const sc = G.scenes[name];
     if (!sc) { console.error('scene?', name); return; }
-    G.fx.abBase = 0; G.fx.glitchBase = 0; G.fx.noise = 0; G.fx.scan = true; G.fx.vign = true;
+    G.fx.abBase = 0; G.fx.glitchBase = 0; G.fx.noise = 0; G.fx.scan = true; G.fx.vign = true; G.fx.crt = false;
     G.scene = sc; G.sceneName = name; sc.t = 0;
     if (sc.enter) sc.enter(params || {});
   };
