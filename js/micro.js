@@ -295,7 +295,7 @@
     mode: 'desk', cmd: 'SORT!', hint: 'FILL EACH ROW WITH ITS COLOR', time: 8,
     help: ['DEFRAGMENT THE DISK:', 'DRAG EACH LOOSE CLUSTER', 'INTO A GAP IN THE ROW', 'OF ITS SAME COLOR.', 'X AND B NEVER MOVE.'],
     init(s) {
-      const r = s.r, d = s.d, cols = 16;
+      const r = s.r, d = s.d, cols = 14; // 14 columnas: casillas un poco más anchas
       // --- pantalla: menú, mapa del disco, leyenda/progreso, estado, logs y barra inferior ---
       s.barH = 11; s.legH = 54; s.statH = 30; s.logH = 38; s.botH = 11;
       const gap = 7; // se coloca de abajo arriba y el mapa se queda con el resto
@@ -832,19 +832,23 @@
       s.view = { x: px + 17, y: py + 6, w: s.pap.w - 17 - 13, h: s.pap.h - 12 };
       // el documento: cada vez más largo
       const lines = [{ t: 'TERMS AND CONDITIONS', b: true }, { t: 'NEO OS 98  -  PAGE 1/999' }, { t: '' }];
-      // rondas alternas: documento muy largo y pocas pulsaciones, o corto y muchas pulsaciones
-      if (s.round === 1 || M.forcequit.flip == null) M.forcequit.flip = Math.random() < 0.5 ? 1 : 0;
-      s.mode = (s.round + M.forcequit.flip) % 2 ? 'scroll' : 'mash';
-      s.hint = s.mode === 'scroll' ? 'LONG TERMS: SCROLL ALL THE WAY DOWN' : 'SHORT TERMS: MASH AGREE FAST';
-      const target = s.view.h + (380 + d * 950) * (s.mode === 'scroll' ? 1.6 : 0.3), pool = shuffle(TOS.slice());
+      // tres tipos de ronda en rotación: largo + pocas pulsaciones, corto + muchas pulsaciones,
+      // y "firma": casi todo el tiempo bajando un documento enorme y un solo toque en AGREE
+      if (s.round === 1 || M.forcequit.flip == null) M.forcequit.flip = G.irand(0, 2);
+      s.mode = ['scroll', 'mash', 'sign'][(s.round + M.forcequit.flip) % 3];
+      if (s.round === 1) M.forcequit.longs = 0;
+      if (s.mode === 'scroll') M.forcequit.longs = (M.forcequit.longs || 0) + 1;
+      s.huge = s.mode === 'scroll' && M.forcequit.longs % 2 === 0; // uno de cada dos documentos largos es enorme
+      s.hint = s.mode === 'mash' ? 'SHORT TERMS: MASH AGREE FAST' : s.mode === 'sign' ? 'SCROLL TO THE END AND SIGN: ONE TAP' : s.huge ? 'HUGE TERMS: SCROLL ALL THE WAY DOWN' : 'LONG TERMS: SCROLL ALL THE WAY DOWN';
+      const target = s.view.h + (380 + d * 950) * (s.mode === 'scroll' ? (s.huge ? 3.4 : 1.6) : s.mode === 'sign' ? 3.0 : 0.3), pool = shuffle(TOS.slice());
       for (let n = 1; lines.length * 9 < target - 60; n++) { G.wrap(n + '. ' + pool[(n - 1) % pool.length], s.view.w).forEach((t) => lines.push({ t })); lines.push({ t: '' }); }
       lines.push({ t: 'BY TAPPING AGREE YOU', b: true }, { t: 'ACCEPT ALL OF THE ABOVE.', b: true }, { t: '' });
       s.lines = lines; s.agY = lines.length * 9 + 2; s.docH = s.agY + 48;
       s.max = Math.max(40, s.docH - s.view.h); s.scroll = 0; s.vel = 0; s.drag = null; s.locked = false;
       s.roll = d > 0.5 ? (d - 0.5) * 220 : 0; // en las rondas altas el papel se enrolla si paras
       s.fill = 0; s.clicks = [];
-      if (s.mode === 'scroll') { s.tapV = 0.2 - 0.04 * d; s.decay = 0.08 + 0.1 * d; } else { s.tapV = 0.065 - 0.015 * d; s.decay = 0.05 + 0.06 * d; }
-      s.T = (1.9 + s.max / 520 + 1 / s.tapV / 7 + (s.decay * 2.5) / s.tapV / 7) * (s.boss ? 1.12 : 1);
+      if (s.mode === 'scroll') { s.tapV = 0.2 - 0.04 * d; s.decay = 0.08 + 0.1 * d; } else if (s.mode === 'sign') { s.tapV = 1; s.decay = 0; } else { s.tapV = 0.065 - 0.015 * d; s.decay = 0.05 + 0.06 * d; }
+      s.T = ((s.mode === 'sign' ? 1.5 : 1.9) + s.max / 520 + 1 / s.tapV / 7 + (s.decay * 2.5) / s.tapV / 7) * (s.boss ? 1.12 : 1);
     },
     off(s) { return { x: Math.round(G.tilt.x * 5 + Math.sin(s.t * 1.3) * 1.5), y: Math.round(G.tilt.y * 5 + Math.cos(s.t * 1.1) * 1.5) }; },
     agree(s) { const v = s.view, w = 92; return { x: Math.round(v.x + v.w / 2 - w / 2), y: Math.round(v.y + s.agY - s.scroll), w, h: 18 }; },
@@ -917,7 +921,7 @@
       for (let i = i0; i < i1; i++) { const ln = s.lines[i]; if (ln.t) G.text(ln.t, v.x, v.y + 2 + i * 9 - s.scroll, K, { b: ln.b }); }
       const ag = this.agree(s);
       G.rect(ag.x + 2, ag.y + 2, ag.w, ag.h, K); G.rect(ag.x, ag.y, ag.w, ag.h, s.locked ? ac : L); G.box(ag.x, ag.y, ag.w, ag.h, K);
-      G.text('AGREE', ag.x + ag.w / 2, ag.y + 6, s.locked ? W : K, { al: 'c', b: true });
+      G.text(s.mode === 'sign' ? 'SIGN & AGREE' : 'AGREE', ag.x + ag.w / 2, ag.y + 6, s.locked ? W : K, { al: 'c', b: true });
       const by = ag.y + 26, bw = v.w - 4;
       G.box(v.x + 2, by, bw, 10, K); const fw = Math.round((bw - 4) * s.fill), hot = s.fill > 0.75 && Math.floor(s.t * 10) % 2;
       for (let i = 0; i < fw; i += 4) G.rect(v.x + 4 + i, by + 2, 3, 6, hot ? ac : ac2 === W ? K : ac2);
@@ -1070,6 +1074,7 @@
   const smName = (n) => (Array.isArray(n) ? n[0] : n);
   const smIcon = (n) => { if (Array.isArray(n)) return 'disk'; if (/\.(TXT|DOC|XLS|ZIP)$/.test(n)) return n.indexOf('PHOTO') === 0 ? 'camera' : 'doc'; return SM_IC[n.split('.')[0]] || SM_IC[n] || 'system'; };
   M.startmenu = {
+    tapToStart: true, // la orden no se quita sola: se toca para empezar (así da tiempo a leer qué buscar)
     mode: 'desk', cmd: 'OPEN!', hint: 'FIND IT IN THE START MENU', time: 5,
     help: ['OPEN THE PROGRAM THEY', 'ASK FOR: TAP START AND', 'GO DOWN THE MENUS.', 'WRONG PROGRAM = FAIL.'],
     init(s) {
@@ -1214,8 +1219,8 @@
   const PAINT_SW = [[K], [K, L, 8], [B], [B, K, 8], [Gr], [Gr, K, 8], [L], [L, K, 4], [W, K, 4], [B, W, 8], [Gr, W, 8], [B, Gr, 8],
     [W], [L, W, 8], [B, L, 8], [Gr, L, 8], [K, W, 8], [B, W, 4], [Gr, W, 4], [K, W, 12], [B, Gr, 4], [Gr, B, 4], [L, B, 8], [K, B, 8]];
   M.erase = {
-    mode: 'float', tilt: 5, cmd: 'ERASE!', hint: 'RUB OUT THE MESS (90%)', time: 5,
-    help: ['A VIRUS SCRIBBLED ON', 'THE PICTURE. RUB WITH', 'YOUR FINGER UNTIL 90%', 'OF IT IS CLEAN.'],
+    mode: 'float', tilt: 5, cmd: 'ERASE!', hint: 'RUB OUT THE MESS (99%)', time: 5,
+    help: ['A VIRUS SCRIBBLED ON', 'THE PICTURE. RUB WITH', 'YOUR FINGER UNTIL 99%', 'OF IT IS CLEAN. BEAT YOUR BEST TIME!'],
     float(aw, ah) { const w = aw - 10; return { w, h: Math.min(ah - 24, Math.round(w * 1.48)), title: 'UNTITLED - PAINT.EXE' }; },
     init(s) {
       const r = s.r, d = s.d;
@@ -1223,7 +1228,8 @@
       s.ws = { x: r.x + 40, y: r.y + 13, w: r.w - 51, h: r.h - 13 - 11 - 40 };
       const k = Math.min(1, (s.ws.w - 6) / G.DRAW_W, (s.ws.h - 6) / G.DRAW_H);
       s.cv = { x: s.ws.x + 3, y: s.ws.y + 3, w: Math.round(G.DRAW_W * k), h: Math.round(G.DRAW_H * k) };
-      const pool = G.DRAW_KINDS.filter((n) => n !== M.erase.lastPic); s.pic = G.pick(pool); M.erase.lastPic = s.pic; // nunca el mismo dos veces seguidas
+      if (s.round === 1 || !M.erase.deck || !M.erase.deck.length) M.erase.deck = shuffle(G.DRAW_KINDS.filter((n) => n !== M.erase.lastPic)); // baraja: ningún dibujo se repite en la partida
+      s.pic = M.erase.deck.pop(); M.erase.lastPic = s.pic;
       G.drawPic(s.pic);
       const cw = s.cv.w, ch = s.cv.h;
       s.mask = G.mkCanvas(cw, ch);
@@ -1234,9 +1240,9 @@
         const cols = [K, B, Gr, W];
         for (let n = 0; n < 10 + Math.round(d * 6); n++) { let x = G.rand(0, cw), y = G.rand(0, ch); const col = G.pick(cols); for (let j = 0; j < 14; j++) { const nx = G.clamp(x + G.rand(-26, 26), 0, cw), ny = G.clamp(y + G.rand(-26, 26), 0, ch); this.stroke(x, y, nx, ny, col, 3); x = nx; y = ny; } }
       } finally { G.target(T); }
-      s.bs = Math.round(Math.min(cw, ch) * 0.2 - 4 * d); s.need = 0.9; s.last = null; s.cur = null;
-      s.bot = d > 0.6 ? { x: G.rand(0, cw), y: G.rand(0, ch), a: Math.random() * 6, t: 0 } : null;
-      s.T = 4.8 * (1 - 0.15 * d) * (s.boss ? 1.15 : 1);
+      s.bs = Math.round(Math.min(cw, ch) * 0.2 - 4 * d); s.need = 0.99; s.last = null; s.cur = null; s.best = G.save.data.bestErase || 0; s.newRec = false;
+      s.bot = d > 0.85 ? { x: G.rand(0, cw), y: G.rand(0, ch), a: Math.random() * 6, t: 0 } : null; // el lápiz del virus solo en el jefe
+      s.T = 4.4 * (1 - 0.12 * d) * (s.boss ? 1.25 : 1); // 99 % y un poco menos de tiempo
     },
     stroke(x0, y0, x1, y1, col, th) {
       const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 1.5));
@@ -1256,13 +1262,13 @@
       for (let i = 1; i <= n; i++) this.rub(s, s.last.x + ((x - s.last.x) * i) / n, s.last.y + ((y - s.last.y) * i) / n);
       s.last = { x, y }; s.cur = { x, y };
       if (Math.random() < 0.08) A().sfx('type', 0.6);
-      if (s.clean / s.dirty.length >= s.need) s.win();
+      if (s.clean / s.dirty.length >= s.need) { if (!s.best || s.t < s.best) { G.save.data.bestErase = s.t; G.save.write(); s.newRec = true; } s.win(); } // récord de tiempo
     },
     up(s) { s.last = null; },
     update(s, dt) {
       const b = s.bot; if (!b) return;
       b.t += dt; b.a += G.rand(-2, 2) * dt * 3;
-      const sp = 40 + 60 * s.d, nx = G.clamp(b.x + Math.cos(b.a) * sp * dt, 0, s.cv.w - 1), ny = G.clamp(b.y + Math.sin(b.a) * sp * dt, 0, s.cv.h - 1);
+      const sp = 25 + 20 * s.d, nx = G.clamp(b.x + Math.cos(b.a) * sp * dt, 0, s.cv.w - 1), ny = G.clamp(b.y + Math.sin(b.a) * sp * dt, 0, s.cv.h - 1);
       if (nx <= 0 || nx >= s.cv.w - 1 || ny <= 0 || ny >= s.cv.h - 1) b.a += Math.PI / 2;
       const T = G.ctx(); G.target(s.mask.x); this.stroke(b.x, b.y, nx, ny, K, 3); G.target(T);
       const gx = Math.floor(nx / 4), gy = Math.floor(ny / 4), i = gy * s.gw + gx; if (i >= 0 && i < s.dirty.length && !s.dirty[i]) { s.dirty[i] = 1; s.clean--; }
@@ -1325,8 +1331,11 @@
       G.rect(r.x + 11, py + 10, 11, 11, W); G.box(r.x + 11, py + 10, 11, 11, K); G.rect(r.x + 5, py + 4, 11, 11, K); G.box(r.x + 5, py + 4, 11, 11, W);
       PAINT_SW.forEach((sw, i) => { const x = r.x + 30 + (i % 12) * 11, y = py + 1 + Math.floor(i / 12) * 11; if (sw.length === 1) G.rect(x, y, 10, 10, sw[0]); else G.drect(x, y, 10, 10, sw[2], sw[0], sw[1]); this.bevel(x, y, 10, 10, true); });
       // barra de estado: cuánto llevas borrado
-      const sy = r.y + r.h - 12, pct = Math.min(100, Math.floor((100 * s.clean) / s.dirty.length)), ok = pct >= 90;
-      this.bevel(r.x + 1, sy, r.w - 50, 11, true); G.text('ERASED ' + pct + '% / 90%', r.x + 4, sy + 2, ok ? B : K, { b: ok });
+      const sy = r.y + r.h - 12, pct = Math.min(100, Math.floor((100 * s.clean) / s.dirty.length)), ok = pct >= 99;
+      this.bevel(r.x + 1, sy, r.w - 50, 11, true);
+      G.text(pct + '%/99%', r.x + 4, sy + 2, ok ? B : K, { b: ok }); // cuánto llevas, cronómetro y tu mejor tiempo
+      G.text(s.t.toFixed(2) + 'S  BEST ' + (s.best ? s.best.toFixed(2) + 'S' : '--'), r.x + r.w - 53, sy + 2, s.newRec ? B : K, { al: 'r' });
+      if (s.newRec && s.done === 'win') { const t = 'NEW RECORD ' + s.t.toFixed(2) + 'S', tw = G.textW(t, 1, 1, true) + 10; G.rect(c.x + c.w / 2 - tw / 2, c.y + c.h - 18, tw, 13, B); G.text(t, c.x + c.w / 2, c.y + c.h - 15, W, { al: 'c', b: true }); }
       this.bevel(r.x + r.w - 47, sy, 22, 11, true); G.dash(r.x + r.w - 43, sy + 3, 8, K, 1, 1); G.dash(r.x + r.w - 43, sy + 7, 8, K, 1, 1);
       this.bevel(r.x + r.w - 23, sy, 22, 11, true); for (let i = 0; i < 4; i++) G.line(r.x + r.w - 6 - i * 3, sy + 9, r.x + r.w - 3, sy + 6 - i * 3 + 3, K);
       // el lápiz del virus y el cursor de la goma
@@ -1385,7 +1394,7 @@
   S.updateMicro = function (dt) {
     const s = this.ms; if (!s) return;
     this.pt += dt;
-    if (this.mphase === 'cmd') { if (this.pt > Math.max(0.75, 1.15 - s.d * 0.35)) { this.mphase = 'play'; this.pt = 0; G.pulse({ ab: 2 }); } return; }
+    if (this.mphase === 'cmd') { if (!this.mg.tapToStart && this.pt > Math.max(0.75, 1.15 - s.d * 0.35)) { this.mphase = 'play'; this.pt = 0; G.pulse({ ab: 2 }); } return; }
     if (this.mphase === 'play') {
       s.t += dt;
       if (this.mg.update) this.mg.update(s, dt);
@@ -1457,7 +1466,17 @@
     const T = G.ctx();
     if (Math.floor(this.pt * 20) % 7 === 0) T.drawImage(G.fsprite(this.mg.cmd, 'italic 900 ' + fs + 'px ' + G.FONT_HEAVY, s.acc2 === K ? L : s.acc2, 120), Math.round(bx + bw / 2 - ww / 2) - 3, by + 14, ww, hh);
     T.drawImage(spr, Math.round(bx + bw / 2 - ww / 2), by + 14, ww, hh);
-    G.wrap(s.hint, bw - 12).forEach((ln, i) => G.text(ln, bx + bw / 2, by + hh + 18 + i * 9, W, { al: 'c' }));
+    const hl = G.wrap(s.hint, bw - 12);
+    if (this.mg.tapToStart && s.hint2) hl.push(...G.wrap(s.hint2, bw - 12)); // también el camino, para leerlo con calma
+    hl.forEach((ln, i) => G.text(ln, bx + bw / 2, by + hh + 18 + i * 9, W, { al: 'c', b: !!this.mg.tapToStart && i === 0 }));
+    let bh2 = bh;
+    if (this.mg.tapToStart) { // botón para empezar dentro de la propia ventana
+      const ty = by + hh + 18 + hl.length * 9 + 4; bh2 = ty - by + 18;
+      G.rect(bx, by + bh, bw, bh2 - bh, s.acc === L ? K : s.acc); G.box(bx, by, bw, bh2, W);
+      if (this.pt > 0.3 && Math.floor(this.pt * 3) % 2 === 0) { G.rect(bx + bw / 2 - 48, ty, 96, 12, W); G.text('TAP TO START', bx + bw / 2, ty + 3, s.acc === L ? K : s.acc, { al: 'c', b: true }); }
+      else { G.box(bx + bw / 2 - 48, ty, 96, 12, W); G.text('TAP TO START', bx + bw / 2, ty + 3, W, { al: 'c', b: true }); }
+    }
+    this.cmdRect = { x: bx, y: by, w: bw, h: bh2 };
     if (s.boss && Math.floor(this.pt * 6) % 2 === 0) G.text('!! BOSS ROUND !!', G.W / 2, by - 12, W, { al: 'c', b: true });
   };
   S.drawRes = function (s) {
@@ -1478,6 +1497,10 @@
     }
   };
   S.tapMicro = function (x, y) {
+    if (this.mphase === 'cmd' && this.mg.tapToStart && this.ms && this.pt > 0.3) { // tocar la ventana de la orden para empezar
+      if (this.cmdRect && G.inR(x, y, this.cmdRect, 8)) { this.mphase = 'play'; this.pt = 0; A().sfx('tap'); G.pulse({ ab: 2 }); }
+      return;
+    }
     if (this.mphase !== 'play' || !this.ms || this.ms.done) return;
     x -= this.foff.x; y -= this.foff.y;
     const s = this.ms;

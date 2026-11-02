@@ -578,6 +578,7 @@
     this.N = this.cfg.N; this.cut = 0; this.grown = 1; this.u = 0;
     this.sw = Math.round(Math.min(ar.w * 0.42, 100)); this.sh = Math.round(this.sw * 0.68);
     this.state = 'sIntro'; this.time = this.cfg.time;
+    this.clock = 0; this.combo13 = 0; this.maxCombo13 = 0; this.newRec = false; // cronómetro, combo y récord
     G.fx.abBase = 1; G.fx.glitchBase = 0.05;
     A().music(null); A().stopMusic();
     A().loop('hum', true, 0.025);
@@ -602,14 +603,14 @@
       return;
     }
     if (this.state === 'sGrow' || this.state === 'play') {
-      const v = (95 + 60 * prog) * SNAKE_MUL[stg] * (this.state === 'sGrow' ? 0.6 : 1);
+      const v = (120 + 55 * prog) * SNAKE_MUL[stg] * (this.state === 'sGrow' ? 0.6 : 1);
       this.u += (v / R) * dt;
       if (this.state === 'sGrow') {
         const target = Math.min(this.N, 1 + Math.floor(this.st * 26));
         if (target > this.grown) { this.grown = target; if (this.grown % 3 === 0) A().sfx('spawn', 2); }
         if (this.grown >= this.N && this.st > 2) { this.state = 'play'; this.st = 0; }
       } else {
-        this.elapsed += dt; this.time -= dt;
+        this.elapsed += dt; this.time -= dt; this.clock += dt;
         const sec = Math.ceil(this.time);
         if (sec <= 5 && sec !== this.lastBeep && this.time > 0) { this.lastBeep = sec; A().sfx('beepT'); }
         if (this.time <= 0) { this.state = 'losing'; this.lt = 0.5; this.loseReason = 'THE SERPENT WON'; A().loop('hum', false); G.pulse({ glitch: 1, ab: 6, shake: 8 }); }
@@ -619,7 +620,7 @@
       this.dsp = dsp;
     }
     if (this.state === 'losing') { this.lt -= dt; if (this.lt <= 0) G.go('gameover', { level: 13, reason: this.loseReason, closed: this.cut, score: this.score, left: this.N - this.cut }); }
-    if (this.state === 'sWin') { this.wt += dt; G.fx.glitchBase = Math.max(0, 0.3 - this.wt * 0.2); G.fx.abBase = Math.max(0, 3 - this.wt * 2); if (this.wt > 1.2) G.go('ending', { score: this.score }); }
+    if (this.state === 'sWin') { this.wt += dt; G.fx.glitchBase = Math.max(0, 0.3 - this.wt * 0.2); G.fx.abBase = Math.max(0, 3 - this.wt * 2); if (this.wt > (this.newRec ? 2.2 : 1.2)) G.go('ending', { score: this.score }); }
   };
   S.headRect = function () { const p = this.snakePos(this.u - this.cut * (this.dsp || 0.02)); return { x: p.x, y: p.y, w: this.sw, h: this.sh }; };
   // ventana "CLICK FIX": X a la izquierda, ERROR a la derecha; cambia de colores cada 20 cerradas
@@ -659,6 +660,16 @@
     for (const gh of this.ghosts) { const k = 1 - gh.t / 0.14; const ww = gh.w * k, hh = gh.h * k; G.box(gh.x + (gh.w - ww) / 2, gh.y + (gh.h - hh) / 2, ww, hh, W); }
     for (const p of this.parts) G.rect(p.x, p.y, 2, 2, p.col);
     for (const p of this.pops) G.text(p.txt, p.x, p.y - p.t * 22, p.col, { al: 'c', b: true });
+    // marcador: cronómetro, mejor tiempo y combo
+    if (this.state !== 'sIntro') {
+      const ar = area(), best = G.save.data.best13t, fmt = (t) => G.pad(Math.floor(t / 60), 2) + ':' + G.pad(Math.floor(t % 60), 2) + '.' + G.pad(Math.floor((t * 100) % 100), 2);
+      const bw = 110, bx = Math.round(G.W / 2 - bw / 2), by = ar.y + 2;
+      G.rect(bx, by, bw, 30, K); G.box(bx, by, bw, 30, W);
+      G.text(fmt(this.clock), G.W / 2, by + 4, W, { s: 2, al: 'c', b: true });
+      G.text('BEST ' + (best ? fmt(best) : '--:--.--'), G.W / 2, by + 20, this.newRec && Math.floor(G.time * 6) % 2 ? Gr : L, { al: 'c' });
+      if (this.combo13 >= 3) G.text('COMBO x' + this.combo13, G.W / 2, by + 34, this.combo13 >= 10 ? Gr : W, { al: 'c', b: true });
+      if (this.newRec) G.text('NEW RECORD!', G.W / 2, by + 46, Gr, { s: 2, al: 'c', b: true });
+    }
     const left = this.N - this.cut;
     G.drawTaskbar(4, { time: this.state === 'sIntro' || this.state === 'sGrow' ? this.cfg.time : this.time, label: left + ' LEFT', startDown: this.startDown > 0 });
     if (this.state === 'sIntro' && this.st < 1.4) G.text('SECTOR 13', G.W / 2, area().y + 8, W, { al: 'c' });
@@ -678,7 +689,8 @@
     if (this.state !== 'play') return;
     const r = this.headRect();
     if (G.inR(x, y, r, 2)) {
-      this.cut++; this.score += 20 + Math.round(this.cut * 2);
+      this.cut++; this.combo13++; this.maxCombo13 = Math.max(this.maxCombo13, this.combo13);
+      this.score += 20 + Math.round(this.cut * 2) + Math.min(10, this.combo13) * 5; // el combo suma puntos
       this.ghosts.push({ x: r.x, y: r.y, w: r.w, h: r.h, t: 0 });
       this.burst(r.x + r.w / 2, r.y + r.h / 2, G.pick([W, Gr, B]), 5);
       A().sfx('snake', this.cut / this.N); G.vibrate(10); G.pulse({ ab: 1.5 });
@@ -691,9 +703,11 @@
         this.state = 'sWin'; this.wt = 0;
         this.score += Math.round(this.time * 100);
         A().stopMusic(); A().loop('hum', false); A().sfx('restart');
-        G.save.data.beat13 = 1; G.save.data.best13 = Math.max(G.save.data.best13 || 0, this.score); G.save.write();
+        const sv = G.save.data; if (!sv.best13t || this.clock < sv.best13t) { sv.best13t = this.clock; this.newRec = true; } // mejor tiempo
+        sv.beat13 = 1; sv.best13 = Math.max(sv.best13 || 0, this.score); G.save.write();
       }
     } else {
+      this.combo13 = 0;
       this.time = Math.max(0, this.time - 0.4);
       A().sfx('deny'); G.pulse({ glitch: 0.3, shake: 2 }); this.pop(x, y, '-0.4', Gr);
     }

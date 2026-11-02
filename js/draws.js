@@ -165,8 +165,9 @@
       };
       art(B, -2); art(Gr, 2); art(W, 0);
       onto(o, () => {
-        const t = "IT'S ALL IN THE CODE";
-        G.text(t, PW / 2 - 1, 198, B, { al: 'c', b: true }); G.text(t, PW / 2 + 1, 198, Gr, { al: 'c', b: true }); G.text(t, PW / 2, 198, W, { al: 'c', b: true });
+        for (const [t, y] of [["IT'S ALL IN", 190], ['THE CODE', 206]]) { // texto grande con los colores desplazados
+          G.text(t, PW / 2 - 2, y, B, { s: 2, al: 'c', b: true }); G.text(t, PW / 2 + 2, y, Gr, { s: 2, al: 'c', b: true }); G.text(t, PW / 2, y, W, { s: 2, al: 'c', b: true });
+        }
       });
       snap(o);
       for (let k = 0; k < 4; k++) { const y = Math.floor(Math.random() * (PH - 8)), h = 2 + Math.floor(Math.random() * 5), dx = Math.round((Math.random() - 0.5) * 12); c.drawImage(o.c, 0, y, PW, h, dx, y, PW, h); }
@@ -290,6 +291,130 @@
         G.text('[CTRL/T] FONT', 3, PH - 9, Gr); G.text('[?] HELP', 92, PH - 9, Gr);
         G.box(100, 100, 16, 10, W);
       });
+      return o.c;
+    },
+    // 9) póster: monitor con calavera — TRUST NO ONE
+    skullcrt() {
+      const c = work();
+      fr(c, 0, 0, PW, PH, 0);
+      pg(c, [0, 176, 160, 160, 160, 224, 0, 224], lin(c, 0, 160, 0, 224, [[0, 125], [1, 50]]));
+      el(c, 80, 168, 64, 8, gv(0, 0.55));
+      pg(c, [22, 62, 34, 52, 126, 52, 138, 62], 246);
+      rr(c, 20, 60, 120, 98, 5, lin(c, 20, 0, 140, 0, [[0, 238], [1, 196]]));
+      rr(c, 30, 68, 100, 78, 8, 15);
+      c.save(); c.beginPath(); if (c.roundRect) c.roundRect(32, 70, 96, 74, 7); else c.rect(32, 70, 96, 74); c.clip();
+      fr(c, 32, 70, 96, 74, rad(c, 80, 106, 4, 56, [[0, 70], [1, 10]]));
+      el(c, 80, 98, 22, 20, rad(c, 74, 90, 2, 26, [[0, 245], [1, 160]]));
+      rr(c, 66, 108, 28, 16, 4, lin(c, 0, 108, 0, 124, [[0, 210], [1, 130]]));
+      el(c, 71, 101, 6, 5.5, 10); el(c, 89, 101, 6, 5.5, 10); el(c, 71, 101, 1.2, 1.2, 255);
+      pg(c, [80, 108, 77, 115, 83, 115], 20);
+      for (let i = 0; i < 6; i++) fr(c, 68.5 + i * 4.2, 118, 1, 6, 60);
+      for (let y = 70; y < 144; y += 3) fr(c, 32, y, 96, 1, gv(0, 0.35));
+      pg(c, [36, 72, 56, 72, 34, 110, 34, 92], gv(255, 0.25));
+      c.restore();
+      el(c, 124, 151, 1.6, 1.6, 255); fr(c, 30, 150, 30, 2, 120);
+      fr(c, 62, 158, 36, 6, 150); pg(c, [56, 164, 104, 164, 110, 170, 50, 170], 175);
+      pg(c, [18, 182, 118, 182, 128, 204, 8, 204], 222); pg(c, [8, 204, 128, 204, 128, 208, 8, 208], 100);
+      for (let r = 0; r < 4; r++) for (let k = 0; k < 15; k++) { const t = (r + 0.5) / 4, xl = 18 + (8 - 18) * t, xr = 118 + (128 - 118) * t, w = (xr - xl) / 15; fr(c, xl + k * w + 1, 184 + r * 5, w - 1.6, 3, 120); }
+      el(c, 144, 196, 8, 11, lin(c, 136, 0, 152, 0, [[0, 235], [1, 170]])); fr(c, 143.5, 186, 1, 9, 120);
+      qd(c, [144, 185, 146, 170, 132, 166], 200, 1);
+      const o = dither(lum(c), [K, W]);
+      onto(o, () => { G.text('TRUST NO ONE', PW / 2, 10, W, { s: 2, al: 'c' }); G.text('NOT EVEN YOUR COMPUTER', PW / 2, 30, W, { al: 'c' }); G.dash(14, 42, PW - 28, W, 1, 1); });
+      return o.c;
+    },
+    // 10) calle de noche con lluvia y carteles de neón (azul)
+    city() {
+      const c = work();
+      fr(c, 0, 0, PW, PH, lin(c, 0, 0, 0, 130, [[0, 15], [1, 70]]));
+      pg(c, [0, 0, 58, 64, 58, 150, 0, 224], lin(c, 0, 0, 58, 0, [[0, 55], [1, 30]]));
+      pg(c, [160, 0, 102, 64, 102, 150, 160, 224], lin(c, 160, 0, 102, 0, [[0, 45], [1, 25]]));
+      for (let k = 0; k < 7; k++) { const x0 = 2 + k * 8, t = x0 / 58, top = t * 64, bot = 224 - t * 74; for (let y = top + 6; y < bot - 8; y += 10 - t * 4) if (Math.random() < 0.5) fr(c, x0 + 1, y, 5 - t * 2, 5 - t * 2.5, 150 + Math.random() * 100); }
+      for (let k = 0; k < 7; k++) { const x0 = 156 - k * 8, t = (160 - x0) / 58, top = t * 64, bot = 224 - t * 74; for (let y = top + 6; y < bot - 8; y += 10 - t * 4) if (Math.random() < 0.5) fr(c, x0 - 4, y, 5 - t * 2, 5 - t * 2.5, 150 + Math.random() * 100); }
+      fr(c, 58, 64, 44, 86, lin(c, 0, 64, 0, 150, [[0, 25], [1, 55]]));
+      pg(c, [58, 150, 102, 150, 160, 224, 0, 224], lin(c, 0, 150, 0, 224, [[0, 80], [1, 120]]));
+      for (let i = 0; i < 14; i++) { const x = 20 + Math.random() * 120; fr(c, x, 160 + Math.random() * 40, 1.5, 8 + Math.random() * 14, gv(230, 0.6)); }
+      // carteles de neón verticales
+      const sign = (x, y, w, h, txt) => { rr(c, x, y, w, h, 2, 250); txt.split('').forEach((ch, i) => { const s = G.fsprite(ch, '16px ' + G.FONT_JP, K, 128); c.drawImage(s, x + w / 2 - 7, y + 3 + i * 17, 14, 15); }); };
+      sign(16, 34, 18, 74, '電脳館'); sign(128, 44, 18, 58, '酒場'); rr(c, 66, 96, 28, 9, 2, 240);
+      { const s = G.fsprite('BAR 24H', '9px ' + G.FONT_JP, K, 128); c.drawImage(s, 68, 97, 24, 7); }
+      // figura con paraguas
+      c.beginPath(); c.moveTo(68, 132); c.quadraticCurveTo(80, 118, 92, 132); c.closePath(); fill(c, 230); c.fill();
+      ln(c, [80, 126, 80, 150], 230, 1); fr(c, 76.5, 132, 7, 14, 10); fr(c, 77, 146, 2, 8, 10); fr(c, 81, 146, 2, 8, 10);
+      el(c, 80, 156, 12, 2, gv(255, 0.25));
+      for (let i = 0; i < 90; i++) { const x = Math.random() * 170, y = Math.random() * 224; ln(c, [x, y, x - 2, y + 7], gv(210, 0.55), 0.7); }
+      return dither(lum(c), [K, B, L, W]).c;
+    },
+    // 11) perfil en semitono azul
+    profile() {
+      const c = work();
+      // fondo más oscuro a la derecha: el perfil claro se recorta contra él
+      fr(c, 0, 0, PW, PH, lin(c, 0, 0, 160, 0, [[0, 215], [0.55, 150], [1, 70]]));
+      pg(c, [20, 224, 34, 174, 66, 156, 100, 154, 130, 172, 146, 224], lin(c, 0, 150, 0, 224, [[0, 55], [1, 20]]));
+      pg(c, [66, 150, 100, 150, 104, 172, 64, 176], lin(c, 60, 0, 104, 0, [[0, 120], [1, 235]]));
+      const face = [94, 48, 103, 62, 106, 75, 108, 82, 121, 98, 111, 104, 114, 109, 109, 112, 112, 116, 106, 128, 92, 136, 98, 152, 68, 152, 56, 122, 58, 72, 72, 48];
+      pg(c, face, lin(c, 56, 0, 122, 0, [[0, 150], [0.5, 220], [1, 255]]));
+      // pelo recogido y moño
+      pg(c, [58, 74, 70, 48, 94, 46, 100, 56, 86, 58, 74, 74, 68, 104, 60, 122, 50, 96], 25);
+      el(c, 50, 50, 14, 14, 20); el(c, 46, 45, 5, 4, gv(255, 0.3)); ln(c, [62, 58, 76, 50], 90, 1.2);
+      el(c, 76, 98, 5, 8, 150); el(c, 77, 98, 2, 4, 60);
+      // ojo, ceja, nariz, labios y sombra del cuello
+      el(c, 101, 84, 3.4, 1.6, 10); ln(c, [95, 77, 106, 75], 15, 2.2); ln(c, [97, 81, 105, 80], 30, 1);
+      ln(c, [116, 100, 112, 103], 90, 1.2);
+      el(c, 111, 110.5, 3, 1.4, 50); el(c, 111, 114.5, 2.6, 1.4, 90); ln(c, [104, 112, 109, 112], 40, 1);
+      pg(c, [92, 136, 98, 152, 84, 150], gv(0, 0.45));
+      ln(c, [58, 72, 56, 122], gv(0, 0.4), 4);
+      return halftone(lum(c), B, W, 3).c;
+    },
+    // 12) cabeza de alambre en monitor verde
+    wirehead() {
+      const o = G.mkCanvas(PW, PH), c = o.x;
+      fr(c, 0, 0, PW, PH, 0);
+      c.save(); c.translate(76, 108);
+      const rx = 42, ry = 54;
+      sk(c, Gr, 1);
+      for (let k = -5; k <= 5; k++) { const y = (k / 6) * ry, w = rx * Math.sqrt(1 - (y / ry) ** 2); c.beginPath(); c.ellipse(0, y, w, w * 0.22, 0, 0, Math.PI * 2); c.stroke(); }
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI; c.beginPath(); c.ellipse(0, 0, Math.max(0.5, rx * Math.abs(Math.cos(a))), ry, 0, 0, Math.PI * 2); c.stroke(); }
+      sk(c, Gr, 1.6); c.beginPath(); c.moveTo(rx * 0.86, -ry * 0.42); c.lineTo(rx + 6, -ry * 0.1); c.lineTo(rx + 14, ry * 0.12); c.lineTo(rx + 3, ry * 0.2); c.lineTo(rx + 6, ry * 0.32); c.lineTo(rx + 1, ry * 0.4); c.lineTo(rx + 2, ry * 0.52); c.lineTo(rx * 0.6, ry * 0.8); c.stroke();
+      sk(c, Gr, 1); for (let k = 0; k < 4; k++) { c.beginPath(); c.moveTo(-18 + k * 10, ry * 0.85); c.lineTo(-22 + k * 12, ry + 34); c.stroke(); }
+      for (let k = 0; k < 3; k++) { c.beginPath(); c.ellipse(0, ry + 6 + k * 10, 26 + k * 4, 5, 0, 0, Math.PI); c.stroke(); }
+      el(c, rx * 0.62, -ry * 0.12, 4, 2.4, W);
+      c.restore();
+      for (let y = 1; y < PH; y += 2) fr(c, 0, y, PW, 1, 'rgba(0,0,0,0.4)');
+      onto(o, () => {
+        G.text('NEURAL LINK', 6, 6, Gr, { b: true }); G.text('NODE 13', PW - 6, 6, Gr, { al: 'r' });
+        G.text('UPLOADING MIND...', 6, PH - 22, Gr); const p = 0.64; G.box(6, PH - 12, PW - 12, 7, Gr); G.drect(8, PH - 10, Math.round((PW - 16) * p), 3, 12, Gr, null);
+        G.text('64%', PW - 6, PH - 22, W, { al: 'r', b: true });
+      });
+      snap(o);
+      return o.c;
+    },
+    // 13) mago oficinista: BORN TO CAST
+    wizard() {
+      const o = G.mkCanvas(PW, PH);
+      onto(o, (c) => {
+        G.rect(0, 0, PW, PH, K); G.drect(0, 0, PW, PH, 2, L, null);
+        drawSprite(c, sprite('Born to Cast', '700 23px ' + G.FONT_GOTH, W, PW - 8), PW / 2, 3);
+        G.box(8, 34, 144, 156, W); G.rect(9, 35, 142, 154, K); G.drect(9, 35, 142, 115, 3, B, null);
+        for (let i = 0; i < 6; i++) G.text('*', 14 + ((i * 37) % 128), 40 + ((i * 23) % 50), W);
+        // monitor
+        G.rect(86, 86, 50, 46, L); G.box(86, 86, 50, 46, K); G.drect(126, 86, 10, 46, 6, K, null);
+        G.rect(91, 91, 34, 28, Gr); G.drect(91, 91, 34, 28, 4, K, null); for (let i = 0; i < 4; i++) G.rect(94, 95 + i * 5, 8 + (i * 9) % 18, 1, K);
+        G.rect(102, 132, 18, 6, L); G.box(102, 132, 18, 6, K);
+        G.rect(9, 150, 142, 39, L); G.drect(9, 150, 142, 39, 3, K, null); G.rect(9, 150, 142, 1, K);
+        G.rect(82, 142, 48, 9, W); G.box(82, 142, 48, 9, K); for (let i = 0; i < 10; i++) { G.px(85 + i * 4, 145, K); G.px(85 + i * 4, 147, K); }
+        // mago: sombrero, barba, túnica, manos
+        G.tri(44, 40, 26, 84, 66, 84, B); G.drect(26, 40, 40, 44, 3, W, null); G.rect(20, 82, 52, 5, B); G.box(20, 82, 52, 5, K);
+        G.text('*', 40, 58, W, { b: true }); G.text('*', 50, 70, W);
+        G.rect(32, 87, 28, 12, W); G.drect(32, 87, 28, 12, 6, L, null); G.rect(37, 91, 4, 2, K); G.rect(51, 91, 4, 2, K);
+        G.tri(30, 98, 62, 98, 46, 136, W); G.drect(30, 98, 32, 38, 4, L, null);
+        G.rect(18, 104, 56, 46, B); G.drect(18, 104, 56, 46, 8, K, null); G.tri(30, 98, 62, 98, 46, 136, W);
+        G.rect(62, 118, 28, 8, B); G.drect(62, 118, 28, 8, 8, K, null); G.rect(88, 140, 8, 5, W); G.box(88, 140, 8, 5, K);
+        G.rect(70, 128, 22, 7, B); G.drect(70, 128, 22, 7, 8, K, null); G.rect(100, 141, 8, 5, W); G.box(100, 141, 8, 5, K);
+        G.rect(12, 108, 3, 42, L); G.circ(13, 106, 4, Gr, K);
+        G.rect(22, 160, 22, 14, W); for (let i = 0; i < 3; i++) G.rect(25, 163 + i * 3, 16, 1, K);
+        drawSprite(c, sprite('Forced to Compile', '700 19px ' + G.FONT_GOTH, W, PW - 8), PW / 2, 194);
+      });
+      snap(o);
       return o.c;
     },
   };
