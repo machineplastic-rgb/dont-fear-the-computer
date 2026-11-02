@@ -18,6 +18,34 @@
   // Un toque en cualquier parte despierta el sistema (desbloquea el sonido y pide el giroscopio).
   const VHS_GLOW = 'rgba(90,90,255,0.95)';
   const two = (n) => String(Math.floor(n)).padStart(2, '0');
+  // tipografía propia estilo menú de vídeo: estrecha y alta (5x9 px)
+  const VF = {
+    A: '.###.#...##...##...#######...##...##...##...#', B: '####.#...##...##...#####.#...##...##...#####.', C: '.###.#...##....#....#....#....#....#...#.###.',
+    D: '####.#...##...##...##...##...##...##...#####.', E: '######....#....#....####.#....#....#....#####', F: '######....#....#....####.#....#....#....#....',
+    G: '.###.#...##....#....#.####...##...##...#.###.', H: '#...##...##...##...#######...##...##...##...#', I: '.###...#....#....#....#....#....#....#...###.',
+    J: '..###...#....#....#....#....#.#..#.#..#..##..', K: '#...##..#.#.#..##...##...#.#..#..#.#...##...#', L: '#....#....#....#....#....#....#....#....#####',
+    M: '#...###.###.#.##.#.##...##...##...##...##...#', N: '#...###..###..##.#.##.#.##..###..###...##...#', O: '.###.#...##...##...##...##...##...##...#.###.',
+    P: '####.#...##...##...#####.#....#....#....#....', Q: '.###.#...##...##...##...##...##.#.##..#..##.#', R: '####.#...##...##...#####.#.#..#..#.#...##...#',
+    S: '.###.#...##....#.....###.....#....##...#.###.', T: '#####..#....#....#....#....#....#....#....#..', U: '#...##...##...##...##...##...##...##...#.###.',
+    V: '#...##...##...##...##...##...#.#.#..#.#...#..', W: '#...##...##...##...##.#.##.#.##.#.###.###...#', X: '#...##...#.#.#..#.#...#...#.#..#.#.#...##...#',
+    Y: '#...##...#.#.#..#.#...#....#....#....#....#..', Z: '#####....#...#....#...#...#....#...#....#####',
+    0: '.###.#...##..###..##.#.###..###..###...#.###.', 1: '..#...##..#.#....#....#....#....#....#..#####', 2: '.###.#...#....#....#...#...#...#...#....#####',
+    3: '.###.#...#....#....#..##.....#....##...#.###.', 4: '...#...##..#.#.#..#.#..#.#####...#....#....#.', 5: '######....#....####.....#....#....##...#.###.',
+    6: '.###.#...##....#....####.#...##...##...#.###.', 7: '#####....#....#...#....#...#....#....#....#..', 8: '.###.#...##...##...#.###.#...##...##...#.###.',
+    9: '.###.#...##...##...#.####....#....##...#.###.', ' ': '', ':': '.............#....#..........#....#..........', '.': '...................................##...##...',
+    '/': '....#....#...#....#...#...#....#...#....#....', '\\': '#....#.....#....#.....#.....#....#.....#....#', '>': '#.....#.....#.....#.....#...#...#...#...#....',
+    '-': '.....................###.....................', '_': '........................................#####', "'": '..#....#....#................................',
+    '&': '.##..#..#.#..#..##...#...#.#.##..#.#..#..##.#', '►': '#....##...###..####.#########.###..##...#....', 'Ø': '.###.#...##..###..##.#.###..###..###...#.###.',
+    x: '...............#...#.#.#...#...#.#.#...#.....', '|': '..#....#....#....#....#....#....#....#....#..',
+  };
+  const vfCache = new Map();
+  function vhsCanvas(str, sc) { // texto ya dibujado (se guarda para no repintarlo cada fotograma)
+    const k = str + '|' + sc; let c = vfCache.get(k); if (c) return c;
+    if (vfCache.size > 160) vfCache.clear();
+    const w = Math.max(1, (str.length * 6 - 1) * sc), cv = G.mkCanvas(w, 9 * sc), x = cv.x; x.fillStyle = B;
+    for (let i = 0; i < str.length; i++) { const g = VF[str[i]] || VF[str[i].toUpperCase()] || ''; for (let p = 0; p < g.length; p++) if (g[p] === '#') x.fillRect((i * 6 + (p % 5)) * sc, Math.floor(p / 5) * sc, sc, sc); }
+    vfCache.set(k, cv.c); return cv.c;
+  }
   G.scenes.power = {
     enter() {
       loadFonts(); G.fx.scan = true; G.fx.vign = true; this.armed = false; this.press = 0; this.track = -60; this.flick = 0; this.jit = 0;
@@ -33,37 +61,40 @@
       this.flick = Math.random() < 0.05 ? G.rand(0.25, 0.6) : Math.max(0, this.flick - dt * 4); // parpadeo del tubo
       this.jit = Math.random() < 0.04 ? G.irand(-3, 3) : 0;
     },
-    // texto azul de VHS con brillo
-    vt(txt, x, y, s, o) { const T = G.ctx(); o = Object.assign({ s }, o || {}); T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 5; G.text(txt, x, y, B, o); T.restore(); G.text(txt, x, y, B, o); },
+    // texto azul de VHS con brillo (tipografía estrecha propia)
+    vt(txt, x, y, s, o) {
+      const T = G.ctx(), c = vhsCanvas(txt, s), al = (o && o.al) || 'l';
+      const xx = Math.round(al === 'c' ? x - c.width / 2 : al === 'r' ? x - c.width : x);
+      T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 4 + s; T.drawImage(c, xx, y); T.restore(); T.drawImage(c, xx, y);
+    },
     draw(g) {
-      const Wd = G.W, Hd = G.H, t = this.t, top = G.safeT + 12, bot = Hd - G.safeB - 8, R = Wd - 10, Lx = 10;
+      const Wd = G.W, Hd = G.H, t = this.t, top = G.safeT + 14, bot = Hd - G.safeB - 8, R = Wd - 12, Lx = 12;
       G.rect(0, 0, Wd, Hd, K);
       // cristal del tubo apenas iluminado
       const T = G.ctx(), gr = T.createRadialGradient(Wd / 2, Hd / 2, 20, Wd / 2, Hd / 2, Math.max(Wd, Hd) * 0.72);
       gr.addColorStop(0, 'rgba(18,18,40,0.9)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); T.fillStyle = gr; T.fillRect(0, 0, Wd, Hd);
       const el = t + 7, ss = Math.floor(el) % 60, mm = Math.floor(el / 60) % 60, hh = Math.floor(el / 3600);
       // arriba
-      this.vt('MAR PRESENTS', Lx, top, 2);
-      this.vt('--.--', R, top, 2, { al: 'r' });
-      this.vt('PLAY ' + (Math.floor(t * 2) % 2 ? '►' : ' '), Lx, top + 20, 2);
-      this.vt('OCT 31.26', R, top + 20, 2, { al: 'r' });
-      this.vt(two(hh) + ':' + two(mm) + ':' + two(ss), Lx, top + 40, 2);
-      const c = this.cd; this.vt(two(c / 3600) + ':' + two((c / 60) % 60) + ':' + two(c % 60), R, top + 40, 2, { al: 'r' });
+      this.vt('MAR PRESENTS', Lx, top, 1);
+      this.vt('OCT 31.26', R, top, 1, { al: 'r' });
+      this.vt('PLAY ' + (Math.floor(t * 2) % 2 ? '►' : ' '), Lx, top + 14, 1);
+      this.vt('--.--', R, top + 14, 1, { al: 'r' });
+      this.vt(two(hh) + ':' + two(mm) + ':' + two(ss), Lx, top + 28, 1);
+      const c = this.cd; this.vt(two(c / 3600) + ':' + two((c / 60) % 60) + ':' + two(c % 60), R, top + 28, 1, { al: 'r' });
       // centro
-      const cy = Math.round(Hd * 0.38), jx = this.jit;
-      this.vt('FATAL', Wd / 2 + jx, cy, 4, { al: 'c' });
-      this.vt('EXCEPTION', Wd / 2 - jx, cy + 32, 4, { al: 'c' });
-      this.vt('C:\\> BOOT_SYSTEM.BAT /FORCE', Wd / 2, cy + 66, 1, { al: 'c', b: true });
+      const cy = Math.round(Hd * 0.42), jx = this.jit;
+      this.vt('FATAL EXCEPTION', Wd / 2 + jx, cy, 2, { al: 'c' });
+      this.vt('C:\\> BOOT_SYSTEM.BAT /FORCE', Wd / 2 - jx, cy + 24, 1, { al: 'c' });
       const info = ['NEØ OS 98 // KERNEL PANIC', '0x0000DEAD: MIND BUFFER CORRUPT', 'USER NOT FOUND', '13 SECTORS INFECTED // VOID.EXE'];
-      info.forEach((s, i) => this.vt(s, Wd / 2, cy + 88 + i * 11, 1, { al: 'c' }));
-      if (this.armed && Math.floor(t * 1.6) % 2 === 0) this.vt('TAP TO WAKE THE SYSTEM', Wd / 2, bot - 64, 1, { al: 'c', b: true });
+      info.forEach((s, i) => this.vt(s, Wd / 2, cy + 52 + i * 13, 1, { al: 'c' }));
+      if (this.armed && Math.floor(t * 1.6) % 2 === 0) this.vt('TAP TO WAKE THE SYSTEM', Wd / 2, bot - 58, 1, { al: 'c' });
       // abajo
-      this.vt('VOLUME', Lx, bot - 44, 2);
-      this.vt('BOOT ►', R, bot - 44, 2, { al: 'r' });
+      this.vt('VOLUME', Lx, bot - 38, 1);
+      this.vt('BOOT ►', R, bot - 38, 1, { al: 'r' });
       const vol = 7 + Math.round(Math.sin(t * 1.3) * 1.5);
-      for (let i = 0; i < 10; i++) { const x = Lx + i * 7; if (i < vol) { T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 4; G.rect(x, bot - 24, 3, 12, B); T.restore(); G.rect(x, bot - 24, 3, 12, B); } else G.rect(x, bot - 19, 4, 2, B); }
-      this.vt('SP  NTSC', R, bot - 22, 2, { al: 'r' });
-      G.text('WARNING: FLASHING LIGHTS & GLITCH', Wd / 2, bot - 2, L, { al: 'c' });
+      for (let i = 0; i < 10; i++) { const x = Lx + i * 5; if (i < vol) { T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 4; G.rect(x, bot - 24, 2, 9, B); T.restore(); G.rect(x, bot - 24, 2, 9, B); } else G.rect(x, bot - 20, 3, 1, B); }
+      this.vt('SP  NTSC', R, bot - 24, 1, { al: 'r' });
+      G.text('WARNING: FLASHING LIGHTS & GLITCH', Wd / 2, bot - 4, L, { al: 'c' });
       // banda de tracking que baja, parpadeo, ruido y el destello al tocar
       if (this.track > 0 && this.track < Hd - 8) g.drawImage(G.cv, 0, this.track, Wd, 7, G.irand(2, 6), this.track, Wd, 7);
       if (this.flick > 0) { T.fillStyle = 'rgba(0,0,0,' + this.flick.toFixed(2) + ')'; T.fillRect(0, 0, Wd, Hd); }

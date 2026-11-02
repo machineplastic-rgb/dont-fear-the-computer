@@ -291,6 +291,7 @@
   }
   function dfCut(txt, w) { const n = Math.floor(w / 6); return txt.length > n ? txt.slice(0, n - 3) + '...' : txt; }
   M.defrag = {
+    fx: 0.35, // menos aberración y glitch de fondo en este juego
     mode: 'desk', cmd: 'SORT!', hint: 'FILL EACH ROW WITH ITS COLOR', time: 8,
     help: ['DEFRAGMENT THE DISK:', 'DRAG EACH LOOSE CLUSTER', 'INTO A GAP IN THE ROW', 'OF ITS SAME COLOR.', 'X AND B NEVER MOVE.'],
     init(s) {
@@ -334,7 +335,7 @@
       s.n = n; s.placed = 0; s.rowFlash = [0, 0, 0, 0];
       s.frag0 = G.irand(62, 94); s.clus = G.irand(10, 99) + '.' + G.irand(100, 999); s.disks = G.irand(12, 40);
       s.insT = 1.2; s.logs = ['[DISK] C: MOUNTED', '[SYS] ANALYZING DRIVE...', '[DISK] FRAGMENTATION ' + s.frag0 + '%'];
-      s.T = (3 + n * 0.9) * (1 - 0.12 * d) * (s.boss ? 1.15 : 1);
+      s.T = (3.2 + n * 1.0) * (1 - 0.04 * d) * (s.boss ? 1.2 : 1); // más margen en las rondas finales
     },
     pos(s, row, c) { return { x: s.mx + c * s.pw, y: s.my + row * s.ph + (row >= 4 ? s.split : 0) }; },
     lowPos(s, i) { return this.pos(s, 4 + Math.floor(i / s.cols), i % s.cols); },
@@ -375,13 +376,13 @@
       const g = this.gapNear(s, f);
       if (g && g.t === f.t) {
         g.filled = true; g.pop = 0.35; f.done = true; s.low[f.slot] = null; s.placed++;
-        A().sfx('drop'); G.pulse({ ab: 1.5 }); G.vibrate(10);
+        A().sfx('drop'); G.pulse({ ab: 0.5 }); G.vibrate(10);
         this.log(s, '[MOVE] CLUSTER > ROW ' + (g.row + 1));
         if (s.gaps.every((q) => q.row !== g.row || q.filled)) { s.rowFlash[g.row] = 0.45; A().sfx('close', 2); this.log(s, '[DONE] ROW ' + (g.row + 1) + ' OPTIMIZED'); }
         if (s.gaps.every((q) => q.filled)) s.win();
         return;
       }
-      if (g) { A().sfx('deny'); G.pulse({ glitch: 0.3, ab: 2 }); this.log(s, '[ERR] WRONG ROW FOR THIS CLUSTER'); }
+      if (g) { A().sfx('deny'); G.pulse({ glitch: 0.2, ab: 0.7 }); this.log(s, '[ERR] WRONG ROW FOR THIS CLUSTER'); }
       f.ret = { x0: f.x, y0: f.y, t: 0 }; // vuelve a su sitio
     },
     update(s, dt) {
@@ -403,7 +404,7 @@
           if (c.length && free.length) {
             const f = G.pick(c), j = G.pick(free), p = this.lowPos(s, j);
             s.low[f.slot] = null; f.slot = j; s.low[j] = f; f.x = f.hx = p.x; f.y = f.hy = p.y; f.gl = 0.35;
-            A().sfx('spawn', 1); G.pulse({ glitch: 0.25, ab: 1.5 }); this.log(s, G.pick(DF_SYS));
+            A().sfx('spawn', 1); G.pulse({ glitch: 0.15, ab: 0.5 }); this.log(s, G.pick(DF_SYS));
           }
         }
       }
@@ -831,14 +832,19 @@
       s.view = { x: px + 17, y: py + 6, w: s.pap.w - 17 - 13, h: s.pap.h - 12 };
       // el documento: cada vez más largo
       const lines = [{ t: 'TERMS AND CONDITIONS', b: true }, { t: 'NEO OS 98  -  PAGE 1/999' }, { t: '' }];
-      const target = s.view.h + 380 + d * 950, pool = shuffle(TOS.slice());
+      // rondas alternas: documento muy largo y pocas pulsaciones, o corto y muchas pulsaciones
+      if (s.round === 1 || M.forcequit.flip == null) M.forcequit.flip = Math.random() < 0.5 ? 1 : 0;
+      s.mode = (s.round + M.forcequit.flip) % 2 ? 'scroll' : 'mash';
+      s.hint = s.mode === 'scroll' ? 'LONG TERMS: SCROLL ALL THE WAY DOWN' : 'SHORT TERMS: MASH AGREE FAST';
+      const target = s.view.h + (380 + d * 950) * (s.mode === 'scroll' ? 1.6 : 0.3), pool = shuffle(TOS.slice());
       for (let n = 1; lines.length * 9 < target - 60; n++) { G.wrap(n + '. ' + pool[(n - 1) % pool.length], s.view.w).forEach((t) => lines.push({ t })); lines.push({ t: '' }); }
       lines.push({ t: 'BY TAPPING AGREE YOU', b: true }, { t: 'ACCEPT ALL OF THE ABOVE.', b: true }, { t: '' });
       s.lines = lines; s.agY = lines.length * 9 + 2; s.docH = s.agY + 48;
       s.max = Math.max(40, s.docH - s.view.h); s.scroll = 0; s.vel = 0; s.drag = null; s.locked = false;
       s.roll = d > 0.5 ? (d - 0.5) * 220 : 0; // en las rondas altas el papel se enrolla si paras
-      s.fill = 0; s.tapV = 0.11 - 0.03 * d; s.decay = 0.08 + 0.14 * d; s.clicks = [];
-      s.T = (1.9 + s.max / 520 + 1 / s.tapV / 7) * (s.boss ? 1.12 : 1);
+      s.fill = 0; s.clicks = [];
+      if (s.mode === 'scroll') { s.tapV = 0.2 - 0.04 * d; s.decay = 0.08 + 0.1 * d; } else { s.tapV = 0.065 - 0.015 * d; s.decay = 0.05 + 0.06 * d; }
+      s.T = (1.9 + s.max / 520 + 1 / s.tapV / 7 + (s.decay * 2.5) / s.tapV / 7) * (s.boss ? 1.12 : 1);
     },
     off(s) { return { x: Math.round(G.tilt.x * 5 + Math.sin(s.t * 1.3) * 1.5), y: Math.round(G.tilt.y * 5 + Math.cos(s.t * 1.1) * 1.5) }; },
     agree(s) { const v = s.view, w = 92; return { x: Math.round(v.x + v.w / 2 - w / 2), y: Math.round(v.y + s.agY - s.scroll), w, h: 18 }; },
@@ -1095,7 +1101,8 @@
       s.startB = { x: r.x + 3, y: s.bar.y + 2, w: 50, h: 12 };
       s.minY = r.y + 34; s.rowH = 14;
       s.open = []; s.sel = []; s.flash = null; s.shake = 0;
-      s.T = (1.4 + (s.path.length + 1) * 0.8 + (s.hint2 ? 0 : 0.8)) * (1 - 0.1 * d) * (s.boss ? 1.15 : 1);
+      s.T = 1.35 * (1.4 + (s.path.length + 1) * 0.8 + (s.hint2 ? 0 : 0.8)) * (1 - 0.1 * d) * (s.boss ? 1.15 : 1);
+      s.lastProg = 0; s.hintDelay = d < 0.6 ? 0.8 : 1.5; // si tardas, se marca la opción buena
     },
     trap(name, menu) { // nombre casi igual (PA1NT.EXE, PAINT.EX3...)
       for (let k = 0; k < 20; k++) {
@@ -1126,7 +1133,7 @@
     },
     tap(s, x, y) {
       if (G.inR(x, y, s.startB, 3)) { // START abre / cierra
-        if (s.open.length) { s.open = []; s.sel = []; } else { s.open = [1]; s.sel = []; }
+        if (s.open.length) { s.open = []; s.sel = []; } else { s.open = [1]; s.sel = []; s.lastProg = s.t; }
         A().sfx('tap'); return;
       }
       const ms = this.layout(s);
@@ -1136,7 +1143,9 @@
         if (x < ix - 2 || i < 0 || i >= m.items.length) return;
         const it = m.items[i];
         if (Array.isArray(it)) { // submenú
-          s.sel = s.sel.slice(0, lv); s.sel[lv] = i; s.open = new Array(lv + 2).fill(1); A().sfx('pick'); return;
+          s.sel = s.sel.slice(0, lv); s.sel[lv] = i; s.open = new Array(lv + 2).fill(1); A().sfx('pick');
+          if (s.sel.every((v, k) => v === s.path[k])) s.lastProg = s.t; // vas bien: la pista vuelve a esperar
+          return;
         }
         s.sel = s.sel.slice(0, lv); s.sel[lv] = i; s.flash = { lv, i, t: 0.4 };
         if (it === s.target) { A().sfx('ok'); G.pulse({ ab: 2 }); s.win(); }
@@ -1182,6 +1191,16 @@
         this.drawMenu(s, m, lv);
         const n = ms[lv + 1]; if (n) { const iy = m.y + 2 + s.sel[lv] * s.rowH + 7, lx = Math.min(m.x + m.w + 2, n.x + n.w - 6); G.rect(m.x + m.w - 1, iy, lx - (m.x + m.w) + 2, 1, W); G.rect(lx, n.y + n.h, 1, Math.max(0, iy - (n.y + n.h) + 1), W); }
       });
+      // pequeña ayuda: si tardas, parpadea un marco en la opción buena del menú en el que estás
+      if (!s.done && s.open.length && s.t - s.lastProg > s.hintDelay && Math.floor(s.t * 4) % 2) {
+        let k = 0; while (k < s.path.length && s.sel[k] === s.path[k]) k++;
+        const m = ms[k];
+        if (m && k < s.path.length) {
+          const ix = m.band ? m.x + 16 : m.x + 2, yy = m.y + 2 + s.path[k] * s.rowH;
+          G.box(ix - 2, yy - 1, m.x + m.w - ix + 1, s.rowH + 2, B, 2);
+          G.tri(m.x + m.w + 9, yy + 2, m.x + m.w + 9, yy + s.rowH - 2, m.x + m.w + 3, yy + s.rowH / 2, W);
+        }
+      }
       // al acertar: se abre el programa
       if (s.done === 'win') {
         const w = { x: r.x + 30, y: r.y + 70, w: r.w - 60, h: 80, st: G.WSTYLES.g3, title: s.target, stripes: true, xmode: 'x' }, wr = G.drawFrame(w);
@@ -1359,8 +1378,9 @@
     this.ms = s; this.mphase = 'cmd'; this.pt = 0;
     A().sfx('cmd'); G.pulse({ glitch: 0.5, ab: 3 });
     A().intensity(d);
-    G.fx.abBase = (this.block === 3 ? 1 : Math.round(d * 0.8)) + (boss ? 1 : 0);
-    G.fx.glitchBase = (this.block === 3 ? 0.04 + d * 0.06 : d > 0.55 ? (d - 0.55) * 0.1 : 0) + (boss ? 0.03 : 0);
+    const fx = this.mg.fx == null ? 1 : this.mg.fx; // algunos juegos piden menos efectos de fondo
+    G.fx.abBase = ((this.block === 3 ? 1 : Math.round(d * 0.8)) + (boss ? 1 : 0)) * fx;
+    G.fx.glitchBase = ((this.block === 3 ? 0.04 + d * 0.06 : d > 0.55 ? (d - 0.55) * 0.1 : 0) + (boss ? 0.03 : 0)) * fx;
   };
   S.updateMicro = function (dt) {
     const s = this.ms; if (!s) return;

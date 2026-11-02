@@ -24,7 +24,7 @@
     { n: 10, name: 'ECHO.EXE', mode: 'micro', game: 'echo', block: 3, rounds: 8 },
     { n: 11, name: 'START.EXE', mode: 'micro', game: 'startmenu', block: 3, rounds: 8 },
     { n: 12, name: 'ERASE', mode: 'micro', game: 'erase', block: 3, rounds: 8 },
-    { n: 13, name: 'SERPENT', mode: 'serpent', block: 4, N: 80, time: 48 },
+    { n: 13, name: 'SERPENT', mode: 'serpent', block: 4, N: 100, time: 66 },
   ];
 
   // textos temáticos (cada sector = lo que dibuja su tarjeta)
