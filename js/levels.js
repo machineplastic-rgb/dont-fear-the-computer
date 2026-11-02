@@ -22,9 +22,9 @@
     { n: 8, name: 'CURSOR', mode: 'micro', game: 'cursor', block: 2, rounds: 8 },
     { n: 9, name: 'FORCEQUIT', mode: 'micro', game: 'forcequit', block: 2, rounds: 8 },
     { n: 10, name: 'ECHO.EXE', mode: 'micro', game: 'echo', block: 3, rounds: 8 },
-    { n: 11, name: 'OK.EXE', mode: 'micro', game: 'okbtn', block: 3, rounds: 8 },
+    { n: 11, name: 'START.EXE', mode: 'micro', game: 'startmenu', block: 3, rounds: 8 },
     { n: 12, name: 'ERASE', mode: 'micro', game: 'erase', block: 3, rounds: 8 },
-    { n: 13, name: 'SERPENT', mode: 'serpent', block: 4, N: 45, time: 30 },
+    { n: 13, name: 'SERPENT', mode: 'serpent', block: 4, N: 80, time: 48 },
   ];
 
   // textos temáticos (cada sector = lo que dibuja su tarjeta)

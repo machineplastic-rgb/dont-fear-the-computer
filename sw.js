@@ -1,15 +1,16 @@
 // Service worker: el juego funciona sin conexión tras la primera carga.
-const CACHE_NAME = 'dftc-v3';
+const CACHE_NAME = 'dftc-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
-  'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/deskart.js', 'js/audio.js', 'js/ui.js',
+  'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/deskart.js', 'js/draws.js', 'js/audio.js', 'js/ui.js',
   'js/levels.js', 'js/scenes_intro.js', 'js/scenes_menu.js', 'js/game.js', 'js/micro.js', 'js/main.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 const FONT_CACHE = 'dftc-fonts';
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // 'reload': baja los archivos nuevos del servidor, no los que el navegador tenga guardados
+  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(

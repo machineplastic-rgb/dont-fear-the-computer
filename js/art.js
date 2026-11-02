@@ -300,11 +300,12 @@
         if (lit) G.box(x - 1, y - 1, 12, 10, K);
       }
     },
-    11(t) { // OK.EXE: el botón OK se escapa
-      G.rect(1, 2, 16, 10, W); G.box(1, 2, 16, 10, K); G.rect(1, 2, 16, 3, K); G.drawSpr('mcur', 3, 6, { '#': K, w: K });
-      const bx = 12 + Math.round(Math.sin(t * 3.1) * 5), by = 12 + Math.round(Math.cos(t * 2.3) * 3);
-      G.rect(bx - 1, by, 10, 6, Gr); G.box(bx - 1, by, 10, 6, K); G.px(bx + 2, by + 2, K); G.px(bx + 2, by + 3, K); G.px(bx + 5, by + 2, K); G.px(bx + 6, by + 3, K);
-      G.drawSpr('mcur', Math.min(21, bx + 10 - Math.round(Math.sin(t * 3.1 + 0.6) * 3)), by + 5, { '#': K, w: W });
+    11(t) { // START.EXE: menús de inicio que se abren en escalera
+      const k = Math.floor(t * 2.5) % 5;
+      G.rect(0, 17, 24, 3, K); G.rect(1, 17, 7, 3, W); G.box(1, 17, 7, 3, K);
+      if (k >= 1) { G.rect(1, 6, 9, 11, L); G.box(1, 6, 9, 11, K); G.rect(1, 6, 2, 11, B); G.rect(3, 8, 6, 2, B); }
+      if (k >= 2) { G.rect(8, 2, 8, 8, L); G.box(8, 2, 8, 8, K); G.rect(9, 4, 6, 2, B); }
+      if (k >= 3) { G.rect(14, 0, 9, 7, L); G.box(14, 0, 9, 7, K); G.rect(15, 3, 7, 2, k === 4 ? Gr : B); }
     },
     12(t) { // ERASE: la goma destapa el dibujo
       G.rect(1, 1, 22, 18, W); G.box(1, 1, 22, 18, K);

@@ -582,14 +582,18 @@
     A().music(null); A().stopMusic();
     A().loop('hum', true, 0.025);
   };
+  // recorrido sinuoso: curva grande + ondas rápidas encima (nunca se sale de la pantalla)
   S.snakePos = function (u) {
     const ar = area();
     const ax = (ar.w - this.sw) / 2 - 1, ay = (ar.h - this.sh) / 2 - 1;
     const cx = ar.x + ar.w / 2, cy = ar.y + ar.h / 2;
-    return { x: Math.round(cx + ax * Math.sin(u + 0.35 * Math.sin(u * 0.37)) - this.sw / 2), y: Math.round(cy + ay * Math.sin(u * 1.63 + 1.1) - this.sh / 2) };
+    const sx = 0.8 * Math.sin(u + 0.35 * Math.sin(u * 0.37)) + 0.2 * Math.sin(u * 3.3 + 0.6);
+    const sy = 0.8 * Math.sin(u * 1.63 + 1.1) + 0.2 * Math.sin(u * 2.9 + 2.1);
+    return { x: Math.round(cx + ax * sx - this.sw / 2), y: Math.round(cy + ay * sy - this.sh / 2) };
   };
+  S.snakeStage = function () { return Math.min(3, Math.floor(this.cut / 20)); }; // cada 20 cerradas: otro color, más rápido y más glitch
   S.updateSnake = function (dt) {
-    const prog = this.cut / this.N;
+    const prog = this.cut / this.N, stg = this.snakeStage();
     const ar = area(), R = (ar.w + ar.h) / 3;
     const dsp = 4.2 / R;
     if (this.state === 'sIntro') {
@@ -597,7 +601,7 @@
       return;
     }
     if (this.state === 'sGrow' || this.state === 'play') {
-      const v = (34 + 130 * prog * prog + 40 * prog) * (this.state === 'sGrow' ? 0.6 : 1);
+      const v = (55 + 70 * prog) * [1, 1.3, 1.65, 2.0][stg] * (this.state === 'sGrow' ? 0.6 : 1);
       this.u += (v / R) * dt;
       if (this.state === 'sGrow') {
         const target = Math.min(this.N, 1 + Math.floor(this.st * 26));
@@ -609,28 +613,34 @@
         if (sec <= 5 && sec !== this.lastBeep && this.time > 0) { this.lastBeep = sec; A().sfx('beepT'); }
         if (this.time <= 0) { this.state = 'losing'; this.lt = 0.5; this.loseReason = 'THE SERPENT WON'; A().loop('hum', false); G.pulse({ glitch: 1, ab: 6, shake: 8 }); }
       }
-      A().intensity(prog);
-      G.fx.abBase = 1 + prog * 3.5; G.fx.glitchBase = 0.04 + prog * 0.32; G.fx.noise = 0.02 + prog * 0.07;
+      A().intensity(Math.min(1, prog + stg * 0.1));
+      G.fx.abBase = 1 + stg * 1.2 + prog * 1.5; G.fx.glitchBase = 0.04 + stg * 0.09 + prog * 0.08; G.fx.noise = 0.02 + stg * 0.025 + prog * 0.02;
       this.dsp = dsp;
     }
     if (this.state === 'losing') { this.lt -= dt; if (this.lt <= 0) G.go('gameover', { level: 13, reason: this.loseReason, closed: this.cut, score: this.score, left: this.N - this.cut }); }
     if (this.state === 'sWin') { this.wt += dt; G.fx.glitchBase = Math.max(0, 0.3 - this.wt * 0.2); G.fx.abBase = Math.max(0, 3 - this.wt * 2); if (this.wt > 1.2) G.go('ending', { score: this.score }); }
   };
   S.headRect = function () { const p = this.snakePos(this.u - this.cut * (this.dsp || 0.02)); return { x: p.x, y: p.y, w: this.sw, h: this.sh }; };
+  // ventana "CLICK FIX": X a la izquierda, ERROR a la derecha; cambia de colores cada 20 cerradas
+  const SNAKE_SCH = [{ bd: W, fg: K }, { bd: B, fg: W }, { bd: Gr, fg: K }, { bd: K, fg: Gr }];
   S.drawSnakeWin = function (x, y, w, h, head, k) {
-    const prog = this.cut / this.N;
-    let bd = W, fr = K;
-    if (prog > 0.35 && (k * 7 + Math.floor(G.time * 10)) % 23 === 0) bd = G.pick([B, Gr]);
-    G.rect(x + 1, y, w - 2, h, fr); G.rect(x, y + 1, w, h - 2, fr);
-    G.rect(x + 1, y + 1, w - 2, h - 2, bd);
-    G.rect(x + 1, y + 10, w - 2, 1, fr);
-    G.circ(x + 6, y + 5, 2, head ? fr : null, fr); G.circ(x + 12, y + 5, 2, null, fr); G.circ(x + 18, y + 5, 2, null, fr);
-    G.text('void', x + w / 2 + 6, y + 2, fr, { al: 'c' });
-    if (head) {
-      const cx = Math.floor(x + w / 2), cy = Math.floor(y + 10 + (h - 10) / 2);
-      G.box(cx - 6, cy - 7, 13, 15, fr); G.box(cx - 4, cy - 4, 9, 9, fr);
-      G.line(cx - 2, cy - 2, cx + 2, cy + 2, fr); G.line(cx + 2, cy - 2, cx - 2, cy + 2, fr);
-    }
+    const stg = this.snakeStage();
+    let { bd, fg } = SNAKE_SCH[stg];
+    if (stg >= 2 && (k * 7 + Math.floor(G.time * 12)) % 19 === 0) { const t = bd; bd = fg; fg = t; } // parpadeo glitch
+    G.rect(x + 1, y, w - 2, h, fg); G.rect(x, y + 1, w, h - 2, fg);
+    G.rect(x + 2, y + 2, w - 4, h - 4, bd);
+    // barra de título
+    G.line(x + 4, y + 3, x + 10, y + 9, fg); G.line(x + 5, y + 3, x + 11, y + 9, fg); G.line(x + 10, y + 3, x + 4, y + 9, fg); G.line(x + 11, y + 3, x + 5, y + 9, fg);
+    G.text('ERROR', x + w - 5, y + 3, fg, { al: 'r' });
+    G.rect(x + 2, y + 12, w - 4, 2, fg);
+    // icono y texto
+    const iy = y + 15 + Math.floor((h - 33) / 2);
+    G.circ(x + 12, iy + 8, 7, fg, fg); G.line(x + 9, iy + 5, x + 15, iy + 11, bd); G.line(x + 15, iy + 5, x + 9, iy + 11, bd); G.line(x + 10, iy + 5, x + 16, iy + 11, bd); G.line(x + 16, iy + 5, x + 10, iy + 11, bd);
+    G.text('CLICK "FIX"', x + 23, iy + 2, fg); G.text('TO FIX ERROR', x + 23, iy + 11, fg);
+    // botón FIX (en la cabeza va relleno para que se vea cuál toca)
+    const bw = 44, bx = Math.round(x + w / 2 - bw / 2), by = y + h - 16;
+    if (head) { G.rect(bx, by, bw, 12, fg); G.text('FIX', bx + bw / 2, by + 3, bd, { al: 'c', b: true }); if (Math.floor(G.time * 8) % 2) G.box(x - 2, y - 2, w + 4, h + 4, stg === 1 ? Gr : stg === 3 ? W : B); }
+    else { G.box(bx, by, bw, 12, fg); G.text('FIX', bx + bw / 2, by + 3, fg, { al: 'c' }); }
   };
   S.drawSnake = function (g) {
     G.rect(0, 0, G.W, G.H, K);
@@ -670,6 +680,11 @@
       this.ghosts.push({ x: r.x, y: r.y, w: r.w, h: r.h, t: 0 });
       this.burst(r.x + r.w / 2, r.y + r.h / 2, G.pick([W, Gr, B]), 5);
       A().sfx('snake', this.cut / this.N); G.vibrate(10); G.pulse({ ab: 1.5 });
+      if (this.cut % 20 === 0 && this.cut < this.N) { // sube de fase: otro color, más rápido, más glitch
+        const stg = this.snakeStage();
+        G.pulse({ glitch: 1.2, ab: 7, shake: 6, flash: 0.3, flashCol: [W, B, Gr, W][stg] }); A().sfx('glitch'); A().sfx('cmd'); G.vibrate(40);
+        this.pop(G.W / 2, area().y + area().h / 2, 'SPEED x' + [1, 1.3, 1.65, 2][stg], W);
+      }
       if (this.cut >= this.N) {
         this.state = 'sWin'; this.wt = 0;
         this.score += Math.round(this.time * 100);

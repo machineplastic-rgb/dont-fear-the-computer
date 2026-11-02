@@ -5,6 +5,7 @@ window.G = window.G || {};
   // Paleta oficial del juego (medida del dossier)
   G.PAL = { G: '#46ff00', B: '#0000ff', L: '#dddddd', K: '#000000', W: '#ffffff' };
   G.time = 0;
+  G.VERSION = 'V4'; // versión visible en la pantalla de carga y en SYSTEM
 
   const scr = document.getElementById('screen');
   const sg = scr.getContext('2d', { alpha: false });
@@ -258,7 +259,7 @@ window.G = window.G || {};
   const KEY = 'dftc.save.v1';
   G.save = {
     data: null,
-    defaults() { return { unlocked: 1, lv: {}, beat13: 0, best13: 0, settings: { music: 1, sfx: 1, fx: 1, vib: 1 } }; },
+    defaults() { return { unlocked: 1, lv: {}, beat13: 0, best13: 0, hof: [], initials: 'AAA', settings: { music: 1, sfx: 1, fx: 1, vib: 1 } }; },
     load() {
       let d = null;
       try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; }
@@ -266,10 +267,14 @@ window.G = window.G || {};
       if (!d || typeof d !== 'object') d = def;
       d.settings = Object.assign(def.settings, d.settings || {});
       d.lv = d.lv || {}; d.unlocked = G.clamp(d.unlocked || 1, 1, 12);
+      d.hof = Array.isArray(d.hof) ? d.hof.filter((e) => e && typeof e.n === 'string').slice(0, 8) : []; // récords con iniciales
+      d.initials = typeof d.initials === 'string' && /^[A-Z0-9]{3}$/.test(d.initials) ? d.initials : 'AAA';
       this.data = d;
     },
     write() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { } },
     lv(n) { const l = this.data.lv[n] || (this.data.lv[n] = { best: 0, tier: 0, clears: 0 }); return l; },
     reset() { const s = this.data.settings; this.data = this.defaults(); this.data.settings = s; this.write(); },
   };
+  // puntuación total (la misma que el TOTAL de MEMORY CORE)
+  G.coreTotal = function () { const sv = G.save.data; let t = sv.best13 || 0; for (let n = 1; n <= sv.unlocked; n++) t += G.save.lv(n).best; return t; };
 })(window.G);

@@ -542,6 +542,15 @@
         bell(t, 311, 0.7, 0.35, 1.41, 2.5, g); bell(t, 233, 0.8, 0.3, 2.01, 2, g);
         const o = osc('square', 82, t), s = shaper(18), og = gain(0); perc(og.gain, t, 0.18, 0.3); o.connect(s); s.connect(og); og.connect(g); o.start(t); o.stop(t + 0.32);
         break; }
+      case 'sys': { // 4 avisos de sistema estilo escritorio 90s (sonidos propios, no copias): acorde, campanitas, golpe crítico y "ding"
+        const k = (p | 0) % 4;
+        if (k === 0) { [mf(72), mf(76), mf(79)].forEach((f) => bell(t, f, 0.5, 0.09, 2, 0.6)); tone(t, mf(48), 0.3, 0.07, 'triangle'); }
+        else if (k === 1) { bell(t, mf(84), 0.28, 0.13, 3.5, 1.1); bell(t + 0.1, mf(79), 0.38, 0.12, 3.5, 1.1); }
+        else if (k === 2) {
+          const o = osc('sine', 120, t), og = gain(0); o.frequency.exponentialRampToValueAtTime(50, t + 0.2); perc(og.gain, t, 0.32, 0.25); o.connect(og); og.connect(sBus); o.start(t); o.stop(t + 0.3);
+          bell(t, mf(55), 0.45, 0.13, 1.41, 2.2); bell(t, mf(58), 0.45, 0.09, 1.41, 2);
+        } else { bell(t, mf(91), 0.4, 0.17, 2, 1); bell(t + 0.004, mf(103), 0.18, 0.05, 2, 0.5); }
+        break; }
       case 'note': { // tonos del juego de memoria
         const f = [mf(64), mf(68), mf(71), mf(76)][(p | 0) % 4];
         tone(t, f, 0.28, 0.17, 'square'); tone(t, f * 2, 0.22, 0.05, 'triangle');

@@ -181,6 +181,7 @@
     rows() {
       const s = G.save.data.settings, r = [['MUSIC', s.music ? 'ON' : 'OFF', 'music'], ['SFX', s.sfx ? 'ON' : 'OFF', 'sfx'], ['GLITCH', s.fx ? 'HIGH' : 'LOW', 'fx']];
       if (navigator.vibrate) r.push(['VIBRA', s.vib ? 'ON' : 'OFF', 'vib']);
+      r.push(['PROTOCOLS', '', 'protocols']);
       r.push(['ERASE', 'MEMORY', 'erase']); r.push(['BACK', '', 'back']);
       return r;
     },
@@ -196,7 +197,7 @@
         if (val) G.text(val, G.W - 9, y + (val === 'MEMORY' ? 4 : 0), W, { s: val === 'MEMORY' ? 1 : 2, al: 'r' });
       });
       osdDivider(L0.y0 + this.rows().length * L0.step + 2);
-      G.text('VERSION 1.0  //  NEØ OS 98', G.W / 2, G.H - G.safeB - 14, W, { al: 'c' });
+      G.text('BUILD ' + G.VERSION + '  //  NEØ OS 98', G.W / 2, G.H - G.safeB - 14, W, { al: 'c' });
       if (this.confirm) {
         G.drect(0, 0, G.W, G.H, 8, K, null);
         const w = { x: Math.floor(G.W / 2 - 70), y: Math.floor(G.H / 2 - 36), w: 140, h: 72, st: G.WSTYLES.b2, title: 'WARNING', stripes: true, xmode: 'none' };
@@ -221,6 +222,7 @@
         if (y >= yy - 5 && y < yy + 18) {
           const id = rows[i][2], s = G.save.data.settings;
           if (id === 'back') { A().sfx('back'); G.go('menu', { sel: 2 }); return; }
+          if (id === 'protocols') { A().sfx('tap'); G.go('protocols'); return; }
           if (id === 'erase') { A().sfx('tap'); this.confirm = true; return; }
           s[id] = s[id] ? 0 : 1; G.save.write(); A().applySettings(); A().sfx('tap');
           if (id === 'vib' && s.vib) G.vibrate(30);
@@ -230,6 +232,187 @@
       }
     },
     key(k) { if (k === 'Escape') G.go('menu', { sel: 2 }); },
+  };
+
+  // ================= PROTOCOLS: cómo se juega (en inglés) =================
+  const PROTOCOLS = [
+    ['h', 'THE COMPUTER HAS GONE ROGUE.'],
+    ['', 'ERRORS, POP-UPS AND VIRUSES ARE TAKING OVER THE DESKTOP. CLEAN IT UP.'],
+    ['', ''],
+    ['h', 'HOW TO PLAY'],
+    ['>', 'JACK IN PLAYS THE NEXT SECTOR. SECTORS LETS YOU PICK ANY SECTOR YOU HAVE UNLOCKED.'],
+    ['>', 'SECTOR 01: CLOSE THE WINDOWS BEFORE THEY PILE UP. WATCH OUT FOR FAKE X BUTTONS.'],
+    ['>', 'SECTORS 02-12: FAST MICRO-GAMES. READ THE ORDER AND ACT BEFORE THE FUSE BURNS OUT.'],
+    ['>', '4 LIVES PER SECTOR. THE LAST ROUND IS ALWAYS A BOSS.'],
+    ['>', 'TILT THE PHONE: FLOATING WINDOWS MOVE WITH IT.'],
+    ['>', 'THE START BUTTON PAUSES THE GAME.'],
+    ['', ''],
+    ['h', 'RUNS: α > β > γ > Ω+'],
+    ['>', 'CLEARING A SECTOR UNLOCKS THE NEXT ONE AND A HARDER RUN OF THE SAME SECTOR.'],
+    ['>', 'EACH RUN ADDS ROUNDS, SPEED AND GLITCH. SCORE: α x1, β x1.5, γ x2, Ω+ x2.5.'],
+    ['>', 'Ω+ IS THE FINAL OVERCLOCK: TOP SPEED, MAX GLITCH. CLEAR IT TO MASTER THE SECTOR.'],
+    ['', ''],
+    ['h', 'SECTOR 13'],
+    ['>', 'BEAT SECTOR 12 AND SOMETHING WAKES UP. SURVIVE IT, THEN SIGN YOUR INITIALS AND SHARE YOUR RECORD.'],
+  ];
+  G.scenes.protocols = {
+    enter() { G.fx.abBase = 1.2; this.track = -100; this.scroll = 0; this.drag = null; this.build(); },
+    resize() { this.build(); },
+    build() { // líneas ya cortadas al ancho de la pantalla
+      this.lines = [];
+      for (const [k, t] of PROTOCOLS) {
+        if (!t) { this.lines.push({ t: '', k }); continue; }
+        G.wrap(t, G.W - (k === '>' ? 30 : 18)).forEach((ln, i) => this.lines.push({ t: ln, k, first: i === 0 }));
+      }
+    },
+    view() { const top = G.safeT + 12; return { top, y0: top + 28, y1: G.H - G.safeB - 34 }; },
+    maxScroll() { const v = this.view(); return Math.max(0, this.lines.length * 10 - (v.y1 - v.y0)); },
+    update(dt) { this.track += dt * 70; if (this.track > G.H + 20) this.track = -G.irand(80, 400); },
+    draw(g) {
+      G.rect(0, 0, G.W, G.H, B);
+      const v = this.view();
+      osdHeader('PROTOCOLS', v.top);
+      const T = G.ctx(); T.save(); T.beginPath(); T.rect(0, v.y0 - 2, G.W, v.y1 - v.y0 + 2); T.clip();
+      this.lines.forEach((ln, i) => {
+        const y = Math.round(v.y0 + i * 10 - this.scroll); if (y < v.y0 - 10 || y > v.y1) return;
+        if (ln.k === 'h') G.text(ln.t, 9, y, W, { b: true });
+        else if (ln.k === '>') { if (ln.first) G.text('➤', 9, y, Gr); G.text(ln.t, 21, y, W); }
+        else G.text(ln.t, 9, y, L);
+      });
+      T.restore();
+      if (this.maxScroll() > 0) { const v2 = v.y1 - v.y0, th = Math.max(12, v2 * v2 / (v2 + this.maxScroll())), ty = v.y0 + (v2 - th) * (this.scroll / this.maxScroll()); G.rect(G.W - 4, v.y0, 1, v2, W); G.rect(G.W - 5, Math.round(ty), 3, Math.round(th), W); }
+      osdDivider(v.y1 + 2);
+      G.text('➤', 10, v.y1 + 10, W, { s: 2 }); G.text('BACK', 30, v.y1 + 10, W, { s: 2 });
+      vhsTrack(g, Math.floor(this.track));
+      G.drawNoise(0.03);
+    },
+    tap(x, y) { this.drag = { y, s: this.scroll, moved: false }; },
+    move(x, y) { if (!this.drag) return; const dy = this.drag.y - y; if (Math.abs(dy) > 3) this.drag.moved = true; this.scroll = G.clamp(this.drag.s + dy, 0, this.maxScroll()); },
+    up(x, y) { const d = this.drag; this.drag = null; if (d && !d.moved && y > this.view().y1) { A().sfx('back'); G.go('system'); } },
+    key(k) { if (k === 'Escape' || k === 'Enter') G.go('system'); if (k === 'ArrowDown') this.scroll = Math.min(this.maxScroll(), this.scroll + 20); if (k === 'ArrowUp') this.scroll = Math.max(0, this.scroll - 20); },
+  };
+
+  // ================= RÉCORD: tres letras, tabla y compartir =================
+  const INI = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  G.scenes.record = {
+    enter(p) {
+      this.score = (p && p.score) || 0; this.phase = 'enter'; this.msg = ''; this.mt = 0; this.file = null;
+      this.ch = (G.save.data.initials || 'AAA').split('').map((c) => Math.max(0, INI.indexOf(c)));
+      this.cur = 0; G.fx.abBase = 1.2; this.track = -100;
+    },
+    name() { return this.ch.map((i) => INI[i]).join(''); },
+    lay() { const cy = Math.round(G.H * 0.46), sw = 40, gap = 10, x0 = Math.round(G.W / 2 - (sw * 3 + gap * 2) / 2); return { cy, sw, gap, x0, ok: { x: Math.round(G.W / 2 - 40), y: cy + 74, w: 80, h: 20 } }; },
+    blay() { const by = G.H - G.safeB - 30; return { share: { x: 10, y: by, w: Math.floor(G.W / 2) - 15, h: 20 }, cont: { x: Math.floor(G.W / 2) + 5, y: by, w: Math.floor(G.W / 2) - 15, h: 20 } }; },
+    update(dt) { this.track += dt * 70; if (this.track > G.H + 20) this.track = -G.irand(80, 400); if (this.mt > 0) this.mt -= dt; },
+    confirm() {
+      const sv = G.save.data, n = this.name();
+      sv.initials = n;
+      const e = { n, s: this.score, t: Date.now() };
+      sv.hof.push(e); sv.hof.sort((a, b) => b.s - a.s); sv.hof = sv.hof.slice(0, 8); G.save.write();
+      this.rank = sv.hof.indexOf(e); this.phase = 'board'; A().sfx('ok'); G.pulse({ flash: 0.3, flashCol: W, ab: 3 });
+      this.prepShare();
+    },
+    // tarjeta para compartir (imagen con nombre y puntuación)
+    card() {
+      const w = 240, h = 300, c = G.mkCanvas(w, h), T = G.ctx(); G.target(c.x);
+      try {
+        G.rect(0, 0, w, h, B); G.box(4, 4, w - 8, h - 8, W); G.box(7, 7, w - 14, h - 14, W);
+        G.text('NEØ OS 98  //  RECORD', w / 2, 14, W, { al: 'c' });
+        const f = '700 26px ' + G.FONT_GOTH, a = G.fsprite("(Don't Fear)", f, W, 128), b = G.fsprite('the Computer', f, W, 128);
+        c.x.drawImage(a, Math.round(w / 2 - a.width / 2), 30); c.x.drawImage(b, Math.round(w / 2 - b.width / 2), 32 + a.height);
+        const y0 = 40 + a.height * 2;
+        G.dash(20, y0, w - 40, W, 3, 2);
+        G.text('USER', w / 2, y0 + 12, L, { al: 'c' }); G.text(this.name(), w / 2, y0 + 24, W, { s: 5, al: 'c', b: true });
+        G.text('FINAL SCORE', w / 2, y0 + 70, L, { al: 'c' }); G.text(G.pad(this.score, 7), w / 2, y0 + 82, Gr, { s: 3, al: 'c', b: true });
+        G.text('SECTOR 13 CLEARED ✓', w / 2, y0 + 112, W, { al: 'c' });
+        const dt = new Date(); G.text(dt.getFullYear() + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' + String(dt.getDate()).padStart(2, '0'), w / 2, y0 + 124, L, { al: 'c' });
+        G.drect(8, h - 30, w - 16, 3, 8, Gr, null);
+        G.text('CAN YOU BEAT IT?', w / 2, h - 22, W, { al: 'c', b: true });
+      } finally { G.target(T); }
+      const big = document.createElement('canvas'); big.width = w * 3; big.height = h * 3; const x = big.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c.c, 0, 0, w * 3, h * 3);
+      return big;
+    },
+    prepShare() { // se prepara antes del toque: compartir tiene que salir del propio toque
+      try { this.card().toBlob((bl) => { if (bl) { try { this.file = new File([bl], 'dont-fear-the-computer-record.png', { type: 'image/png' }); } catch (e) { this.file = null; } } }, 'image/png'); } catch (e) { this.file = null; }
+    },
+    share() {
+      const url = location.origin + location.pathname;
+      const text = this.name() + ' SCORED ' + this.score + " IN (DON'T FEAR) THE COMPUTER. CAN YOU BEAT IT?";
+      const data = { title: "(Don't Fear) the Computer", text: text + ' ' + url };
+      try { if (this.file && navigator.canShare && navigator.canShare({ files: [this.file] })) data.files = [this.file]; } catch (e) { }
+      const say = (m) => { this.msg = m; this.mt = 2.5; };
+      if (navigator.share) navigator.share(data).then(() => say('SHARED!')).catch(() => { });
+      else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(data.text).then(() => say('COPIED TO CLIPBOARD'), () => say('CANNOT SHARE HERE'));
+      else say('CANNOT SHARE HERE');
+    },
+    draw(g) {
+      G.rect(0, 0, G.W, G.H, B);
+      const top = G.safeT + 12;
+      if (this.phase === 'enter') {
+        osdHeader('RECORD', top);
+        G.text('FINAL SCORE', G.W / 2, top + 28, L, { al: 'c' });
+        G.text(G.pad(this.score, 7), G.W / 2, top + 40, W, { s: 3, al: 'c', b: true });
+        G.text('ENTER YOUR INITIALS', G.W / 2, top + 76, W, { al: 'c', b: true });
+        const L0 = this.lay();
+        for (let i = 0; i < 3; i++) {
+          const x = L0.x0 + i * (L0.sw + L0.gap), on = i === this.cur;
+          G.text('▲', x + L0.sw / 2, L0.cy - 30, on ? Gr : W, { s: 2, al: 'c' });
+          G.rect(x, L0.cy - 8, L0.sw, 44, on ? W : B); G.box(x, L0.cy - 8, L0.sw, 44, W);
+          G.text(INI[this.ch[i]], x + L0.sw / 2 + 1, L0.cy + 1, on ? B : W, { s: 4, al: 'c', b: true });
+          if (on && Math.floor(G.time * 3) % 2) G.rect(x + 6, L0.cy + 31, L0.sw - 12, 2, B);
+          G.text('▼', x + L0.sw / 2, L0.cy + 44, on ? Gr : W, { s: 2, al: 'c' });
+        }
+        G.drawBtn(L0.ok.x, L0.ok.y, L0.ok.w, L0.ok.h, 'OK', W, B, false, { double: true });
+      } else {
+        osdHeader('HALL OF FAME', top);
+        const hof = G.save.data.hof, y0 = top + 30;
+        hof.forEach((e, i) => {
+          const y = y0 + i * 18, me = i === this.rank, blink = me && Math.floor(G.time * 4) % 2;
+          if (blink) G.rect(6, y - 3, G.W - 12, 15, W);
+          const col = blink ? B : me ? Gr : W;
+          G.text((i + 1) + '.', 10, y, col, { s: 1 }); G.text(e.n, 26, y - 2, col, { s: 2, b: true });
+          G.dash(70, y + 6, G.W - 150, col, 1, 2); G.text(G.pad(e.s, 7), G.W - 10, y - 2, col, { s: 2, al: 'r' });
+        });
+        osdDivider(y0 + 8 * 18 + 2);
+        G.text('RECORDS ARE SAVED ON THIS DEVICE.', G.W / 2, y0 + 8 * 18 + 12, L, { al: 'c' });
+        G.text('SHARE YOURS:', G.W / 2, y0 + 8 * 18 + 22, L, { al: 'c' });
+        const bl = this.blay();
+        G.drawBtn(bl.share.x, bl.share.y, bl.share.w, bl.share.h, 'SHARE', B, W, false, { double: true });
+        G.drawBtn(bl.cont.x, bl.cont.y, bl.cont.w, bl.cont.h, 'CONTINUE', W, B, false, { double: true });
+        if (this.mt > 0) { const mw = G.textW(this.msg, 1, 1, true) + 12; G.rect(G.W / 2 - mw / 2, bl.share.y - 22, mw, 13, W); G.text(this.msg, G.W / 2, bl.share.y - 19, B, { al: 'c', b: true }); }
+      }
+      vhsTrack(g, Math.floor(this.track));
+      G.drawNoise(0.03);
+    },
+    tap(x, y) {
+      if (this.phase === 'enter') {
+        const L0 = this.lay();
+        if (G.inR(x, y, L0.ok, 4)) return this.confirm();
+        for (let i = 0; i < 3; i++) {
+          const sx = L0.x0 + i * (L0.sw + L0.gap);
+          if (x < sx - 4 || x > sx + L0.sw + 4) continue;
+          this.cur = i;
+          if (y < L0.cy - 10 && y > L0.cy - 50) this.ch[i] = (this.ch[i] + 1) % INI.length;
+          else if (y > L0.cy + 36 && y < L0.cy + 66) this.ch[i] = (this.ch[i] + INI.length - 1) % INI.length;
+          A().sfx('tap'); return;
+        }
+        return;
+      }
+      const bl = this.blay();
+      if (G.inR(x, y, bl.share, 4)) { A().sfx('tap'); this.share(); }
+      else if (G.inR(x, y, bl.cont, 4)) { A().sfx('tap'); G.go('menu'); }
+    },
+    key(k) {
+      if (this.phase === 'enter') {
+        const u = k.length === 1 ? k.toUpperCase() : k;
+        if (u.length === 1 && INI.indexOf(u) >= 0) { this.ch[this.cur] = INI.indexOf(u); this.cur = Math.min(2, this.cur + 1); A().sfx('tap'); }
+        else if (k === 'ArrowUp') this.ch[this.cur] = (this.ch[this.cur] + 1) % INI.length;
+        else if (k === 'ArrowDown') this.ch[this.cur] = (this.ch[this.cur] + INI.length - 1) % INI.length;
+        else if (k === 'ArrowLeft' || k === 'Backspace') this.cur = Math.max(0, this.cur - 1);
+        else if (k === 'ArrowRight') this.cur = Math.min(2, this.cur + 1);
+        else if (k === 'Enter') this.confirm();
+      } else if (k === 'Enter' || k === 'Escape') G.go('menu');
+    },
   };
 
   // ================= MEMORY CORE =================
@@ -263,29 +446,61 @@
   };
 
   // ================= SHUTDOWN =================
+  // ventana de apagado sobre azul con aberración → pantalla negra: el cursor parpadea 4 veces,
+  // se teclea END OF PART 1 (texto con brillo de CRT) y un segundo después la pantalla se apaga como un monitor de tubo
+  const END_TXT = 'END OF PART 1', END_COL = '#cfeff6', END_GLOW = 'rgba(150,225,255,0.85)';
   G.scenes.shutdown = {
-    enter() { A().stopMusic(); A().sfx('glitch'); G.fx.abBase = 0.8; this.typer = new G.Typer(['IT IS NOW SAFE TO', 'DISCONNECT YOUR MIND.'], { loop: false, speed: 0.05, hold: 99 }); this.off = false; },
-    update(dt) {
-      if (this.t > 1.6) this.typer.update(dt);
-      if (!this.off && this.t > 4.2) { this.off = true; A().sfx('crtOff'); }
-      if (this.t > 4.8) G.go('power');
+    enter() {
+      A().stopMusic(); A().sfx('glitch'); G.fx.abBase = 3.2; G.pulse({ glitch: 0.5, ab: 4 });
+      this.tBlack = 1.6; this.tType = this.tBlack + 2.0; this.chT = 0.13; // 4 parpadeos de 0,5 s y luego una letra cada 0,13 s
+      this.tOff = this.tType + END_TXT.length * this.chT + 1.0; this.n = 0; this.off = false; this.black = false;
     },
-    draw() {
+    update(dt) {
+      const t = this.t;
+      if (t < this.tBlack) { G.fx.abBase = 3 + (Math.random() < 0.08 ? G.rand(1, 3) : 0); if (Math.random() < 0.03) G.pulse({ glitch: 0.3 }); }
+      else if (!this.black) { this.black = true; G.fx.abBase = 0.6; G.fx.glitchBase = 0; A().sfx('crtOn'); }
+      if (t >= this.tType) {
+        const n = Math.min(END_TXT.length, Math.floor((t - this.tType) / this.chT) + 1);
+        while (this.n < n) { this.n++; if (END_TXT[this.n - 1] !== ' ') A().sfx('type', 1.6); }
+      }
+      if (!this.off && t > this.tOff) { this.off = true; A().sfx('crtOff'); }
+      if (t > this.tOff + 0.75) G.go('power');
+    },
+    draw(g) {
       const Wd = G.W, Hd = G.H, t = this.t;
-      G.rect(0, 0, Wd, Hd, K);
-      if (t < 1.5) {
+      if (t < this.tBlack) {
+        G.rect(0, 0, Wd, Hd, B); G.drect(0, 0, Wd, Hd, 1, W, null);
         const w = { x: Math.floor(Wd / 2 - 70), y: Math.floor(Hd / 2 - 30), w: 140, h: 60, st: G.WSTYLES.m1, title: 'SHUTDOWN.EXE', stripes: true, xmode: 'none' };
         const r = G.drawFrame(w);
         G.text('SAVING MEMORY...', r.x + 6, r.y + 6, K);
-        const bw = r.w - 12, f = Math.floor((bw - 4) * Math.min(1, t / 1.3));
+        const bw = r.w - 12, f = Math.floor((bw - 4) * Math.min(1, t / (this.tBlack - 0.2)));
         G.box(r.x + 6, r.y + 18, bw, 9, K); for (let i = 0; i < f; i += 4) G.rect(r.x + 8 + i, r.y + 20, 3, 5, K);
-      } else if (t < 4.2) {
-        const s = this.typer.text();
-        G.text(s, Wd / 2 - G.textW('DISCONNECT YOUR MIND.') / 2, Hd / 2 - 8, Gr);
+        return;
+      }
+      G.rect(0, 0, Wd, Hd, K);
+      // cristal del tubo: casi negro con las esquinas redondeadas un pelín más claras
+      const T = G.ctx(), gr = T.createRadialGradient(Wd / 2, Hd / 2, 10, Wd / 2, Hd / 2, Math.max(Wd, Hd) * 0.7);
+      gr.addColorStop(0, 'rgba(40,48,52,0.55)'); gr.addColorStop(0.75, 'rgba(18,20,22,0.5)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
+      T.fillStyle = gr; T.fillRect(0, 0, Wd, Hd);
+      if (t < this.tOff) {
+        const s = END_TXT.slice(0, this.n), full = G.textW(END_TXT, 2, 1, true), x0 = Math.round(Wd / 2 - full / 2), y0 = Math.round(Hd / 2 - 7);
+        const cursorOn = Math.floor((t - this.tBlack) / 0.25) % 2 === 0;
+        // el texto se pinta aparte con las líneas del tubo y luego se pega con brillo
+        if (!this.txc) this.txc = G.mkCanvas(full + 20, 16);
+        const tc = this.txc; tc.x.clearRect(0, 0, tc.c.width, tc.c.height); G.target(tc.x);
+        try {
+          if (s) G.text(s, 0, 1, END_COL, { s: 2, b: true });
+          if (cursorOn) G.rect(s ? G.textW(s, 2, 1, true) + 3 : 0, 1, 10, 14, END_COL);
+          tc.x.globalCompositeOperation = 'destination-out'; tc.x.fillStyle = 'rgba(0,0,0,0.3)'; for (let y = 1; y < 16; y += 2) tc.x.fillRect(0, y, tc.c.width, 1); tc.x.globalCompositeOperation = 'source-over';
+        } finally { G.target(T); }
+        T.save(); T.shadowColor = END_GLOW; T.shadowBlur = 6; T.drawImage(tc.c, x0, y0 - 1); T.restore();
+        T.drawImage(tc.c, x0, y0 - 1);
       } else {
-        const k = (t - 4.2) / 0.5, w = Math.max(1, Math.round(Wd * (1 - k)));
-        if (k < 0.5) G.rect(0, Math.floor(Hd / 2 - (1 - k * 2) * 6), Wd, Math.max(1, Math.round((1 - k * 2) * 12)), W);
-        else G.rect(Math.floor(Wd / 2 - w / 2), Math.floor(Hd / 2), w, 1, W);
+        // apagado de CRT: se aplasta a una raya brillante y luego a un punto
+        const k = Math.min(1, (t - this.tOff) / 0.5);
+        if (k < 0.5) { const hh = Math.max(1, Math.round((1 - k * 2) * 18)); G.rect(0, Math.floor(Hd / 2 - hh / 2), Wd, hh, END_COL); }
+        else { const w = Math.max(2, Math.round(Wd * (1 - (k - 0.5) * 2))); G.rect(Math.floor(Wd / 2 - w / 2), Math.floor(Hd / 2), w, 1, W); }
+        if (k >= 1) { T.save(); T.shadowColor = END_GLOW; T.shadowBlur = 5; G.rect(Math.floor(Wd / 2) - 1, Math.floor(Hd / 2) - 1, 2, 2, W); T.restore(); }
       }
     },
   };
@@ -354,7 +569,7 @@
     enter(p) {
       this.p = p || {}; G.fx.abBase = 0.4; G.fx.glitchBase = 0;
       this.typer = new G.Typer(['ALL WINDOWS CLOSED.', 'THE VOID IS QUIET.', '', 'YOU ARE FREE, USER.'], { loop: false, speed: 0.06, hold: 99 });
-      this.music = false;
+      this.music = false; this.total = G.coreTotal(); // puntuación final = total de todos los sectores
     },
     update(dt) {
       if (this.t > 1.5) this.typer.update(dt);
@@ -375,11 +590,13 @@
         const yy = w.y + wh + 30;
         g.drawImage(a, Math.floor(Wd / 2 - a.width / 2), yy); g.drawImage(b, Math.floor(Wd / 2 - b.width / 2), yy + a.height + 4);
         G.text('FINAL SCORE', Wd / 2, yy + a.height * 2 + 22, W, { al: 'c' });
-        G.text(G.pad(this.p.score || 0, 7), Wd / 2, yy + a.height * 2 + 33, W, { s: 2, al: 'c' });
+        G.text(G.pad(this.total, 7), Wd / 2, yy + a.height * 2 + 33, W, { s: 2, al: 'c' });
+        G.text('SECTOR 13  ' + G.pad(this.p.score || 0, 6), Wd / 2, yy + a.height * 2 + 52, L, { al: 'c' });
       }
-      if (t > 6 && Math.floor(t * 2) % 2 === 0) G.text('TOUCH TO REBOOT', Wd / 2, Hd - G.safeB - 16, W, { al: 'c' });
+      if (t > 6 && Math.floor(t * 2) % 2 === 0) G.text('TOUCH TO SIGN YOUR RECORD', Wd / 2, Hd - G.safeB - 16, W, { al: 'c' });
       G.drawNoise(0.02);
     },
-    tap() { if (this.t < 6) return; A().sfx('tap'); G.go('menu'); },
+    tap() { if (this.t < 6) return; A().sfx('tap'); G.go('record', { score: this.total }); },
+    key(k) { if (k === 'Enter' || k === ' ') this.tap(); },
   };
 })(window.G);

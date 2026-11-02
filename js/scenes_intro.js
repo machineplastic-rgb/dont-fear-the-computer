@@ -14,36 +14,66 @@
   if (document.fonts) document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => G.clearFontCache());
 
   // ================= POWER =================
-  // pantalla "404" (como la referencia, adaptada a la paleta): azul, texto blanco, botón verde y manita
+  // pantalla de vídeo VHS en un monitor de tubo: texto azul con brillo, relojes en marcha, parpadeos, glitch y aberración.
+  // Un toque en cualquier parte despierta el sistema (desbloquea el sonido y pide el giroscopio).
+  const VHS_GLOW = 'rgba(90,90,255,0.95)';
+  const two = (n) => String(Math.floor(n)).padStart(2, '0');
   G.scenes.power = {
-    enter() { loadFonts(); G.fx.scan = true; this.armed = false; this.press = 0; },
+    enter() {
+      loadFonts(); G.fx.scan = true; G.fx.vign = true; this.armed = false; this.press = 0; this.track = -60; this.flick = 0; this.jit = 0;
+      this.cd = 1 * 3600 + 23 * 60 + 51; // cuenta atrás que empieza en 01:23:51
+    },
     update(dt) {
       if (this.t > 0.4) this.armed = true;
       if (this.press > 0) { this.press -= dt; if (this.press <= 0) G.go('boot'); }
+      this.cd = Math.max(0, this.cd - dt);
+      this.track += dt * 90; if (this.track > G.H + 20) this.track = -G.irand(60, 300);
+      G.fx.abBase = 2.4 + (Math.random() < 0.06 ? G.rand(1.5, 4) : 0);
+      if (Math.random() < 0.025) G.pulse({ glitch: G.rand(0.25, 0.7), ab: G.rand(2, 5) });
+      this.flick = Math.random() < 0.05 ? G.rand(0.25, 0.6) : Math.max(0, this.flick - dt * 4); // parpadeo del tubo
+      this.jit = Math.random() < 0.04 ? G.irand(-3, 3) : 0;
     },
-    btn() {
-      const cy = Math.floor(G.H * 0.47);
-      return { x: Math.floor(G.W / 2 - 34), y: cy + 30, w: 68, h: 17 };
-    },
-    draw() {
-      const Wd = G.W, Hd = G.H, cy = Math.floor(Hd * 0.47);
-      G.rect(0, 0, Wd, Hd, B);
-      const title = Wd >= 200 ? '404 — NO USER.' : '404 — NO USER';
-      G.text(title, Wd / 2, cy - 22, W, { s: 2, al: 'c', b: true });
-      G.text('WAKE THE SYSTEM?', Wd / 2, cy + 8, W, { al: 'c' });
-      const b = this.btn(), pr = this.press > 0;
-      G.rect(b.x, b.y, b.w, b.h, pr ? W : Gr);
-      G.text('POWER ON', b.x + b.w / 2, b.y + 5, K, { al: 'c', b: true });
-      const bob = Math.round(Math.sin(this.t * 5) * 2) + (pr ? 3 : 0);
-      G.drawSpr('hand', b.x + 6, b.y + b.h - 1 + bob, { '#': K, w: W }, 2);
-      G.text('WARNING: FLASHING LIGHTS', Wd / 2, Hd - G.safeB - 30, L, { al: 'c' });
-      G.text('AND GLITCH EFFECTS', Wd / 2, Hd - G.safeB - 20, L, { al: 'c' });
-      G.drawNoise(0.025);
+    // texto azul de VHS con brillo
+    vt(txt, x, y, s, o) { const T = G.ctx(); o = Object.assign({ s }, o || {}); T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 5; G.text(txt, x, y, B, o); T.restore(); G.text(txt, x, y, B, o); },
+    draw(g) {
+      const Wd = G.W, Hd = G.H, t = this.t, top = G.safeT + 12, bot = Hd - G.safeB - 8, R = Wd - 10, Lx = 10;
+      G.rect(0, 0, Wd, Hd, K);
+      // cristal del tubo apenas iluminado
+      const T = G.ctx(), gr = T.createRadialGradient(Wd / 2, Hd / 2, 20, Wd / 2, Hd / 2, Math.max(Wd, Hd) * 0.72);
+      gr.addColorStop(0, 'rgba(18,18,40,0.9)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); T.fillStyle = gr; T.fillRect(0, 0, Wd, Hd);
+      const el = t + 7, ss = Math.floor(el) % 60, mm = Math.floor(el / 60) % 60, hh = Math.floor(el / 3600);
+      // arriba
+      this.vt('MAR PRESENTS', Lx, top, 2);
+      this.vt('--.--', R, top, 2, { al: 'r' });
+      this.vt('PLAY ' + (Math.floor(t * 2) % 2 ? '►' : ' '), Lx, top + 20, 2);
+      this.vt('OCT 31.26', R, top + 20, 2, { al: 'r' });
+      this.vt(two(hh) + ':' + two(mm) + ':' + two(ss), Lx, top + 40, 2);
+      const c = this.cd; this.vt(two(c / 3600) + ':' + two((c / 60) % 60) + ':' + two(c % 60), R, top + 40, 2, { al: 'r' });
+      // centro
+      const cy = Math.round(Hd * 0.38), jx = this.jit;
+      this.vt('FATAL', Wd / 2 + jx, cy, 4, { al: 'c' });
+      this.vt('EXCEPTION', Wd / 2 - jx, cy + 32, 4, { al: 'c' });
+      this.vt('C:\\> BOOT_SYSTEM.BAT /FORCE', Wd / 2, cy + 66, 1, { al: 'c', b: true });
+      const info = ['NEØ OS 98 // KERNEL PANIC', '0x0000DEAD: MIND BUFFER CORRUPT', 'USER NOT FOUND', '13 SECTORS INFECTED // VOID.EXE'];
+      info.forEach((s, i) => this.vt(s, Wd / 2, cy + 88 + i * 11, 1, { al: 'c' }));
+      if (this.armed && Math.floor(t * 1.6) % 2 === 0) this.vt('TAP TO WAKE THE SYSTEM', Wd / 2, bot - 64, 1, { al: 'c', b: true });
+      // abajo
+      this.vt('VOLUME', Lx, bot - 44, 2);
+      this.vt('BOOT ►', R, bot - 44, 2, { al: 'r' });
+      const vol = 7 + Math.round(Math.sin(t * 1.3) * 1.5);
+      for (let i = 0; i < 10; i++) { const x = Lx + i * 7; if (i < vol) { T.save(); T.shadowColor = VHS_GLOW; T.shadowBlur = 4; G.rect(x, bot - 24, 3, 12, B); T.restore(); G.rect(x, bot - 24, 3, 12, B); } else G.rect(x, bot - 19, 4, 2, B); }
+      this.vt('SP  NTSC', R, bot - 22, 2, { al: 'r' });
+      G.text('WARNING: FLASHING LIGHTS & GLITCH', Wd / 2, bot - 2, L, { al: 'c' });
+      // banda de tracking que baja, parpadeo, ruido y el destello al tocar
+      if (this.track > 0 && this.track < Hd - 8) g.drawImage(G.cv, 0, this.track, Wd, 7, G.irand(2, 6), this.track, Wd, 7);
+      if (this.flick > 0) { T.fillStyle = 'rgba(0,0,0,' + this.flick.toFixed(2) + ')'; T.fillRect(0, 0, Wd, Hd); }
+      if (this.press > 0) { T.fillStyle = 'rgba(120,120,255,' + (this.press * 2).toFixed(2) + ')'; T.fillRect(0, 0, Wd, Hd); }
+      G.drawNoise(0.045);
     },
     tap() {
       if (!this.armed || this.press > 0) return;
-      A().sfx('power'); A().warmAll(); G.requestTilt(); G.pulse({ ab: 3 });
-      this.press = 0.2;
+      A().sfx('power'); A().warmAll(); G.requestTilt(); G.pulse({ ab: 5, glitch: 0.6 });
+      this.press = 0.25;
     },
     key(k) { if (k === 'Enter' || k === ' ') this.tap(); },
   };
@@ -130,6 +160,7 @@
       const mj = G.fsprite('東京製', '12px ' + G.FONT_JP, W, 110);
       g.drawImage(mj, x0 + 6, y1 - 18);
       G.text('1998', x0 + 8 + mj.width, y1 - 14, W);
+      G.text('NEØ OS 98  ·  BUILD ' + G.VERSION, Wd / 2, y1 + 8, Gr, { al: 'c' });
       const cx = x1 - 14, cy = y1 - 12;
       G.circ(cx, cy, 8, null, Gr); G.circ(cx, cy, 5, null, Gr);
       const a = t * 3; G.line(cx, cy, cx + Math.round(Math.cos(a) * 7), cy + Math.round(Math.sin(a) * 7), Gr);
