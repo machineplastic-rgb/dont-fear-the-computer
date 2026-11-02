@@ -1,5 +1,5 @@
 // Service worker: el juego funciona sin conexión tras la primera carga.
-const CACHE_NAME = 'dftc-v7';
+const CACHE_NAME = 'dftc-v8';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/deskart.js', 'js/draws.js', 'js/audio.js', 'js/ui.js',

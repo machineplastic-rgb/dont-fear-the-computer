@@ -620,7 +620,7 @@
       this.dsp = dsp;
     }
     if (this.state === 'losing') { this.lt -= dt; if (this.lt <= 0) G.go('gameover', { level: 13, reason: this.loseReason, closed: this.cut, score: this.score, left: this.N - this.cut }); }
-    if (this.state === 'sWin') { this.wt += dt; G.fx.glitchBase = Math.max(0, 0.3 - this.wt * 0.2); G.fx.abBase = Math.max(0, 3 - this.wt * 2); if (this.wt > (this.newRec ? 2.2 : 1.2)) G.go('ending', { score: this.score }); }
+    if (this.state === 'sWin') { this.wt += dt; G.fx.glitchBase = Math.max(0, 0.3 - this.wt * 0.2); G.fx.abBase = Math.max(0, 3 - this.wt * 2); if (this.wt > 7) G.go('ending', { score: this.score }); } // la ventana de resultados se cierra tocando
   };
   S.headRect = function () { const p = this.snakePos(this.u - this.cut * (this.dsp || 0.02)); return { x: p.x, y: p.y, w: this.sw, h: this.sh }; };
   // ventana "CLICK FIX": X a la izquierda, ERROR a la derecha; cambia de colores cada 20 cerradas
@@ -670,10 +670,30 @@
       if (this.combo13 >= 3) G.text('COMBO x' + this.combo13, G.W / 2, by + 34, this.combo13 >= 10 ? Gr : W, { al: 'c', b: true });
       if (this.newRec) G.text('NEW RECORD!', G.W / 2, by + 46, Gr, { s: 2, al: 'c', b: true });
     }
+    if (this.state === 'sWin' && this.wt > 0.3) this.drawSnakeResults();
     const left = this.N - this.cut;
     G.drawTaskbar(4, { time: this.state === 'sIntro' || this.state === 'sGrow' ? this.cfg.time : this.time, label: left + ' LEFT', startDown: this.startDown > 0 });
     if (this.state === 'sIntro' && this.st < 1.4) G.text('SECTOR 13', G.W / 2, area().y + 8, W, { al: 'c' });
     if (this.state === 'paused') { this.dim(); this.drawPause(); }
+  };
+  // ventana flotante de resultados al vencer a la serpiente (verde y negro, con brillo)
+  const RES_ST = { fr: Gr, bd: K, bar: Gr, bt: K, tx: Gr, ac: W, sh: B, out: W };
+  S.drawSnakeResults = function () {
+    const ar = area(), t = G.time, k = Math.min(1, (this.wt - 0.3) / 0.35), w = 176, h = 132;
+    const x = Math.round(G.W / 2 - w / 2 + Math.cos(t * 1.1) * 2), y = Math.round(ar.y + ar.h * 0.42 - h / 2 + Math.sin(t * 1.6) * 3 + (1 - k) * 40);
+    const T = G.ctx(), fmt = (v) => G.pad(Math.floor(v / 60), 2) + ':' + G.pad(Math.floor(v % 60), 2) + '.' + G.pad(Math.floor((v * 100) % 100), 2);
+    T.save(); T.shadowColor = 'rgba(70,255,0,0.75)'; T.shadowBlur = 12; G.rect(x, y, w, h, Gr); T.restore();
+    const r = G.drawFrame({ x, y, w, h, st: RES_ST, title: 'RESULTS.EXE', stripes: true, xmode: 'x' });
+    G.text('SERPENT DEFEATED', x + w / 2, r.y + 5, W, { al: 'c', b: true });
+    G.dash(r.x + 6, r.y + 16, r.w - 12, Gr, 2, 2);
+    const best = G.save.data.best13t;
+    const row = (lab, val, yy, col, big) => { G.text(lab, r.x + 8, yy + (big ? 4 : 0), L); G.text(val, r.x + r.w - 8, yy, col, { al: 'r', b: true, s: big ? 2 : 1 }); };
+    row('TIME', fmt(this.clock), r.y + 22, Gr, true);
+    row('BEST', best ? fmt(best) : '--', r.y + 42, this.newRec ? W : Gr);
+    row('MAX COMBO', 'x' + this.maxCombo13, r.y + 54, Gr);
+    row('SCORE', G.pad(this.score, 7), r.y + 66, W, true);
+    if (this.newRec && Math.floor(t * 4) % 2) { G.rect(r.x + 6, r.y + 88, r.w - 12, 11, Gr); G.text('NEW RECORD!', x + w / 2, r.y + 90, K, { al: 'c', b: true }); }
+    else if (this.wt > 1 && Math.floor(t * 2) % 2) G.text('TAP TO CONTINUE', x + w / 2, r.y + 90, L, { al: 'c' });
   };
   S.tapSnake = function (x, y) {
     if (this.state === 'paused') {
@@ -686,6 +706,7 @@
       if (G.inR(x, y, G.startRect(), 3) && (this.state === 'play' || this.state === 'sGrow')) { this.pState = this.state; this.state = 'play'; this.pause(); this.state = 'paused'; }
       return;
     }
+    if (this.state === 'sWin') { if (this.wt > 1) { A().sfx('tap'); G.go('ending', { score: this.score }); } return; }
     if (this.state !== 'play') return;
     const r = this.headRect();
     if (G.inR(x, y, r, 2)) {

@@ -839,8 +839,8 @@
       if (s.round === 1) M.forcequit.longs = 0;
       if (s.mode === 'scroll') M.forcequit.longs = (M.forcequit.longs || 0) + 1;
       s.huge = s.mode === 'scroll' && M.forcequit.longs % 2 === 0; // uno de cada dos documentos largos es enorme
-      s.hint = s.mode === 'mash' ? 'SHORT TERMS: MASH AGREE FAST' : s.mode === 'sign' ? 'SCROLL TO THE END AND SIGN: ONE TAP' : s.huge ? 'HUGE TERMS: SCROLL ALL THE WAY DOWN' : 'LONG TERMS: SCROLL ALL THE WAY DOWN';
-      const target = s.view.h + (380 + d * 950) * (s.mode === 'scroll' ? (s.huge ? 3.4 : 1.6) : s.mode === 'sign' ? 3.0 : 0.3), pool = shuffle(TOS.slice());
+      s.hint = s.mode === 'mash' ? 'SHORT TERMS: MASH AGREE FAST' : s.mode === 'sign' ? 'HUGE TERMS: SCROLL, THEN DOUBLE-CLICK' : s.huge ? 'HUGE TERMS: SCROLL ALL THE WAY DOWN' : 'LONG TERMS: SCROLL ALL THE WAY DOWN';
+      const target = s.view.h + (380 + d * 950) * (s.mode === 'scroll' ? (s.huge ? 3.8 : 2.0) : s.mode === 'sign' ? 4.4 : 0.35), pool = shuffle(TOS.slice());
       for (let n = 1; lines.length * 9 < target - 60; n++) { G.wrap(n + '. ' + pool[(n - 1) % pool.length], s.view.w).forEach((t) => lines.push({ t })); lines.push({ t: '' }); }
       lines.push({ t: 'BY TAPPING AGREE YOU', b: true }, { t: 'ACCEPT ALL OF THE ABOVE.', b: true }, { t: '' });
       s.lines = lines; s.agY = lines.length * 9 + 2; s.docH = s.agY + 48;
@@ -848,7 +848,7 @@
       s.roll = d > 0.5 ? (d - 0.5) * 220 : 0; // en las rondas altas el papel se enrolla si paras
       s.fill = 0; s.clicks = [];
       if (s.mode === 'scroll') { s.tapV = 0.2 - 0.04 * d; s.decay = 0.08 + 0.1 * d; } else if (s.mode === 'sign') { s.tapV = 1; s.decay = 0; } else { s.tapV = 0.065 - 0.015 * d; s.decay = 0.05 + 0.06 * d; }
-      s.T = ((s.mode === 'sign' ? 1.5 : 1.9) + s.max / 520 + 1 / s.tapV / 7 + (s.decay * 2.5) / s.tapV / 7) * (s.boss ? 1.12 : 1);
+      s.T = s.mode === 'sign' ? (1.5 + s.max / 810) * (s.boss ? 1.06 : 1) /* casi al límite: hay que bajar sin pararse */ : (1.9 + s.max / 520 + 1 / s.tapV / 7 + (s.decay * 2.5) / s.tapV / 7) * (s.boss ? 1.12 : 1); s.lastTap = -9;
     },
     off(s) { return { x: Math.round(G.tilt.x * 5 + Math.sin(s.t * 1.3) * 1.5), y: Math.round(G.tilt.y * 5 + Math.cos(s.t * 1.1) * 1.5) }; },
     agree(s) { const v = s.view, w = 92; return { x: Math.round(v.x + v.w / 2 - w / 2), y: Math.round(v.y + s.agY - s.scroll), w, h: 18 }; },
@@ -881,6 +881,11 @@
       if (!s.locked) return;
       const o = this.off(s); x -= o.x; y -= o.y;
       if (!G.inR(x, y, this.agree(s), 6)) return;
+      if (s.mode === 'sign') { // para cerrar hace falta doble clic (dos toques seguidos)
+        const dbl = s.t - s.lastTap < 0.4; s.lastTap = s.t; s.clicks.push({ x, y, t: 0, txt: dbl ? 'SIGNED!' : 'CLICK...' });
+        A().sfx('tap'); if (!dbl) return;
+        s.fill = 1; A().sfx('glitch'); G.pulse({ ab: 2 }); s.win(); return;
+      }
       s.fill += s.tapV; s.clicks.push({ x, y, t: 0 });
       A().sfx('close', Math.floor(s.fill * 10)); G.pulse({ ab: 1.5, shake: 1.5 }); G.vibrate(6);
       if (s.fill >= 1) { s.fill = 1; A().sfx('glitch'); s.win(); }
@@ -921,7 +926,7 @@
       for (let i = i0; i < i1; i++) { const ln = s.lines[i]; if (ln.t) G.text(ln.t, v.x, v.y + 2 + i * 9 - s.scroll, K, { b: ln.b }); }
       const ag = this.agree(s);
       G.rect(ag.x + 2, ag.y + 2, ag.w, ag.h, K); G.rect(ag.x, ag.y, ag.w, ag.h, s.locked ? ac : L); G.box(ag.x, ag.y, ag.w, ag.h, K);
-      G.text(s.mode === 'sign' ? 'SIGN & AGREE' : 'AGREE', ag.x + ag.w / 2, ag.y + 6, s.locked ? W : K, { al: 'c', b: true });
+      G.text(s.mode === 'sign' ? 'DOUBLE-CLICK' : 'AGREE', ag.x + ag.w / 2, ag.y + 6, s.locked ? W : K, { al: 'c', b: true });
       const by = ag.y + 26, bw = v.w - 4;
       G.box(v.x + 2, by, bw, 10, K); const fw = Math.round((bw - 4) * s.fill), hot = s.fill > 0.75 && Math.floor(s.t * 10) % 2;
       for (let i = 0; i < fw; i += 4) G.rect(v.x + 4 + i, by + 2, 3, 6, hot ? ac : ac2 === W ? K : ac2);
@@ -931,7 +936,7 @@
       const sx = p.x + p.w - 10, th = Math.max(14, Math.round((v.h * v.h) / s.docH)), tyy = v.y + Math.round((v.h - th) * (s.scroll / s.max));
       G.drect(sx, v.y, 7, v.h, 4, K, null); G.box(sx, v.y, 7, v.h, K); G.rect(sx, tyy, 7, th, K);
       if (!s.locked && Math.floor(s.t * 4) % 2) { G.rect(v.x + v.w / 2 - 34, p.y + p.h - 15, 68, 10, K); G.text('SCROLL ▼', v.x + v.w / 2, p.y + p.h - 14, W, { al: 'c', b: true }); }
-      for (const c of s.clicks) G.text('CLICK', c.x, c.y - 8 - c.t * 30, ac === W ? K : ac, { al: 'c', b: true });
+      for (const c of s.clicks) G.text(c.txt || 'CLICK', c.x, c.y - 8 - c.t * 30, ac === W ? K : ac, { al: 'c', b: true });
       T.restore();
     },
   };

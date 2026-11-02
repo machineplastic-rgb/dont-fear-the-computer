@@ -589,9 +589,13 @@
         const a = G.fsprite("(Don't Fear)", f, W, 128), b = G.fsprite('the Computer', f, W, 128);
         const yy = w.y + wh + 30;
         g.drawImage(a, Math.floor(Wd / 2 - a.width / 2), yy); g.drawImage(b, Math.floor(Wd / 2 - b.width / 2), yy + a.height + 4);
-        G.text('FINAL SCORE', Wd / 2, yy + a.height * 2 + 22, W, { al: 'c' });
-        G.text(G.pad(this.total, 7), Wd / 2, yy + a.height * 2 + 33, W, { s: 2, al: 'c' });
-        G.text('SECTOR 13  ' + G.pad(this.p.score || 0, 6), Wd / 2, yy + a.height * 2 + 52, L, { al: 'c' });
+        // la puntuación final en una ventana flotante verde con brillo
+        const sw2 = 150, sh2 = 64, sx = Math.round(Wd / 2 - sw2 / 2 + Math.cos(t * 1.2) * 2), sy = Math.round(yy + a.height * 2 + 18 + Math.sin(t * 1.7) * 3), T = g;
+        T.save(); T.shadowColor = 'rgba(70,255,0,0.75)'; T.shadowBlur = 12; G.rect(sx, sy, sw2, sh2, Gr); T.restore();
+        const sr = G.drawFrame({ x: sx, y: sy, w: sw2, h: sh2, st: { fr: Gr, bd: K, bar: Gr, bt: K, tx: Gr, ac: W, sh: B, out: W }, title: 'SCORE.EXE', stripes: true, xmode: 'x' });
+        G.text('FINAL SCORE', sx + sw2 / 2, sr.y + 4, L, { al: 'c' });
+        G.text(G.pad(this.total, 7), sx + sw2 / 2, sr.y + 15, Gr, { s: 2, al: 'c', b: true });
+        G.text('SECTOR 13  ' + G.pad(this.p.score || 0, 6), sx + sw2 / 2, sr.y + 34, W, { al: 'c' });
       }
       if (t > 6 && Math.floor(t * 2) % 2 === 0) G.text('TOUCH TO SIGN YOUR RECORD', Wd / 2, Hd - G.safeB - 16, W, { al: 'c' });
       G.drawNoise(0.02);

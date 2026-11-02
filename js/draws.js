@@ -20,13 +20,23 @@
   const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
   const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
   const PALS = [K, W, L, B, Gr].map(rgb);
-  function work() { const c = document.createElement('canvas'); c.width = PW; c.height = PH; return c.getContext('2d', { willReadFrequently: true }); }
-  function lum(c) { const d = c.getImageData(0, 0, PW, PH).data, o = new Float32Array(PW * PH); for (let i = 0; i < o.length; i++) o[i] = d[i * 4] / 255; return o; }
+  function work() { const c = document.createElement('canvas'); c.width = PW * 2; c.height = PH * 2; const x = c.getContext('2d', { willReadFrequently: true }); x.scale(2, 2); return x; } // se dibuja al doble y se reduce: tonos más suaves
+  function lum(c) { const W2 = PW * 2, d = c.getImageData(0, 0, W2, PH * 2).data, o = new Float32Array(PW * PH); for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const i = (y * 2 * W2 + x * 2) * 4; o[y * PW + x] = (d[i] + d[i + 4] + d[i + W2 * 4] + d[i + W2 * 4 + 4]) / 1020; } return o; }
   function put(o, fn) { const id = o.x.createImageData(PW, PH), p = id.data; for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const i = y * PW + x, col = fn(x, y, i); p[i * 4] = col[0]; p[i * 4 + 1] = col[1]; p[i * 4 + 2] = col[2]; p[i * 4 + 3] = 255; } o.x.putImageData(id, 0, 0); }
   // trama ordenada con una rampa de colores de la paleta
   function dither(Lm, ramp) { const o = G.mkCanvas(PW, PH), cols = ramp.map(rgb), m = ramp.length - 1; put(o, (x, y, i) => { const v = Math.max(0, Math.min(1, Lm[i])) * m, b = Math.floor(v); return cols[Math.min(m, b + (v - b > (BAY[(y & 3) * 4 + (x & 3)] + 0.5) / 16 ? 1 : 0))]; }); return o; }
   // semitono: puntos en una rejilla girada 45º, más grandes cuanto más oscuro
-  function halftone(Lm, ink, paper, cell) { const o = G.mkCanvas(PW, PH), a = rgb(ink), b = rgb(paper), k = cell * Math.SQRT2; put(o, (x, y, i) => { const u = (x + y) / k, v = (x - y) / k, fu = u - Math.round(u), fv = v - Math.round(v); return Math.hypot(fu, fv) < 0.64 * Math.sqrt(1 - Lm[i]) ? a : b; }); return o; }
+  function halftone(Lm, ink, paper, cell, hi) { const o = G.mkCanvas(PW, PH), a = rgb(ink), b = rgb(paper), h = hi ? rgb(hi) : null, k = cell * Math.SQRT2; put(o, (x, y, i) => { if (h && Lm[i] > 0.9) return h; const u = (x + y) / k, v = (x - y) / k, fu = u - Math.round(u), fv = v - Math.round(v); return Math.hypot(fu, fv) < 0.64 * Math.sqrt(1 - Lm[i]) ? a : b; }); return o; }
+  // trama gruesa (píxeles de 2x2), como las ventanas de virus
+  function dither2(Lm, ramp) { const o = G.mkCanvas(PW, PH), cols = ramp.map(rgb), m = ramp.length - 1; put(o, (x, y) => { const xx = x >> 1, yy = y >> 1, i = yy * 2 * PW + xx * 2; const v = Math.max(0, Math.min(1, (Lm[i] + Lm[i + 1] + Lm[i + PW] + Lm[i + PW + 1]) / 4)) * m, b = Math.floor(v); return cols[Math.min(m, b + (v - b > (BAY[(yy & 3) * 4 + (xx & 3)] + 0.5) / 16 ? 1 : 0))]; }); return o; }
+  // mano señalando con el índice (coordenadas propias: muñeca en 0, el dedo apunta a +x)
+  function handPath(x) {
+    x.beginPath(); x.rect(-18, -9, 19, 19);
+    x.moveTo(0, -12); x.lineTo(26, -12); x.lineTo(31, -6); x.lineTo(31, 9); x.lineTo(22, 15); x.lineTo(0, 13); x.closePath();
+    x.moveTo(26, -12); x.lineTo(54, -11.5); x.quadraticCurveTo(60, -8, 54, -4.5); x.lineTo(28, -4); x.closePath();
+    x.moveTo(37, -1); x.ellipse(31, -1, 6, 3.8, 0, 0, Math.PI * 2); x.moveTo(37, 5.5); x.ellipse(31, 5.5, 6, 3.8, 0, 0, Math.PI * 2); x.moveTo(34, 11.5); x.ellipse(28.5, 11.5, 5.5, 3.5, 0, 0, Math.PI * 2);
+    x.moveTo(5, -12); x.quadraticCurveTo(14, -21, 24, -17); x.lineTo(22, -12); x.closePath();
+  }
   // líneas de monitor: solo se encienden las filas pares
   function scan(Lm, lit, bg) { const a = rgb(lit), b = rgb(bg); const o = G.mkCanvas(PW, PH); put(o, (x, y, i) => (y % 2 ? b : Lm[i] > 0.38 + ((BAY[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * 0.3 ? a : b)); return o; }
   // deja solo colores de la paleta (quita el suavizado de los trazos)
@@ -36,141 +46,144 @@
   const drawSprite = (c, sp, cx, y) => { const w = Math.round(sp.s.width * sp.k), h = Math.round(sp.s.height * sp.k); c.drawImage(sp.s, Math.round(cx - w / 2), y, w, h); };
 
   const D = {
-    // 1) póster: ordenador viejo con impresora y lema
+    // 1) póster: ordenador de sobremesa con monitor de tubo e impresora (1 bit)
     poster() {
       const c = work();
       fr(c, 0, 0, PW, PH, 0);
-      pg(c, [0, 170, 160, 150, 160, 224, 0, 224], lin(c, 0, 150, 0, 224, [[0, 130], [1, 55]]));
-      el(c, 70, 182, 66, 9, gv(0, 0.55)); el(c, 144, 184, 20, 5, gv(0, 0.5));
-      // caja
-      pg(c, [12, 150, 26, 140, 134, 140, 120, 150], 242);
-      pg(c, [12, 150, 120, 150, 120, 178, 12, 178], lin(c, 0, 150, 0, 178, [[0, 228], [1, 180]]));
-      pg(c, [120, 150, 134, 140, 134, 166, 120, 178], 118);
-      for (const [x0, w0] of [[20, 36], [64, 34]]) { fr(c, x0, 157, w0, 4, 60); fr(c, x0 + 2, 158, w0 - 4, 1, 20); fr(c, x0, 166, w0, 4, 60); fr(c, x0 + 2, 167, w0 - 4, 1, 20); }
-      el(c, 110, 172, 1.6, 1.6, 255); for (let i = 0; i < 4; i++) fr(c, 104, 156 + i * 3, 12, 1, 130);
-      // monitor
-      pg(c, [56, 142, 84, 142, 88, 150, 52, 150], 170);
-      pg(c, [28, 74, 42, 64, 126, 64, 112, 74], 246);
-      pg(c, [112, 74, 126, 64, 126, 130, 112, 142], 128);
-      rr(c, 26, 72, 88, 72, 4, lin(c, 26, 0, 114, 0, [[0, 236], [1, 196]]));
-      rr(c, 34, 80, 70, 54, 7, 18);
-      c.save(); c.beginPath(); if (c.roundRect) c.roundRect(36, 82, 66, 50, 6); else c.rect(36, 82, 66, 50); c.clip();
-      fr(c, 36, 82, 66, 50, rad(c, 66, 108, 2, 48, [[0, 95], [1, 15]]));
-      sk(c, 185, 0.9); for (let k = 0; k < 6; k++) { c.beginPath(); c.ellipse(70, 108, 26, 2 + k * 2.6, -0.42, 0, Math.PI * 2); c.stroke(); }
-      for (let k = -2; k <= 2; k++) { c.beginPath(); c.ellipse(70, 108, 6 + Math.abs(k) * 5, 15, -0.42 + 1.57, 0, Math.PI * 2); c.stroke(); }
-      pg(c, [42, 84, 62, 84, 38, 124, 36, 104], gv(255, 0.32)); pg(c, [66, 84, 72, 84, 44, 130, 40, 130], gv(255, 0.18));
+      pg(c, [0, 176, 160, 160, 160, 224, 0, 224], lin(c, 0, 160, 0, 224, [[0, 215], [1, 150]]));
+      const box3 = (x, y, w, h, dx, dy, fF, fT, fS) => { pg(c, [x, y, x + w, y, x + w + dx, y + dy, x + dx, y + dy], fT); pg(c, [x + w, y, x + w + dx, y + dy, x + w + dx, y + h + dy, x + w, y + h], fS); fr(c, x, y, w, h, fF); };
+      el(c, 72, 174, 72, 8, gv(0, 0.35));
+      // impresora (cortada a la derecha)
+      box3(124, 152, 42, 26, 18, -8, lin(c, 0, 152, 0, 178, [[0, 230], [1, 190]]), 246, 150);
+      pg(c, [132, 145, 136, 124, 156, 124, 154, 145], 252); for (let i = 0; i < 4; i++) ln(c, [139, 129 + i * 4, 151, 129 + i * 4], 160, 0.7);
+      fr(c, 128, 162, 34, 2.5, 60);
+      // caja con disqueteras
+      box3(12, 140, 96, 30, 22, -10, lin(c, 0, 140, 0, 170, [[0, 240], [1, 200]]), 250, lin(c, 108, 0, 130, 0, [[0, 170], [1, 120]]));
+      for (const [xx, yy] of [[20, 146], [20, 156]]) { fr(c, xx, yy, 34, 6, 200); fr(c, xx, yy, 34, 1, 120); fr(c, xx + 4, yy + 3, 22, 1.5, 40); }
+      fr(c, 70, 150, 26, 12, 225); fr(c, 70, 150, 26, 1, 140); el(c, 100, 163, 1.6, 1.6, 40);
+      // monitor de tubo en 3/4
+      fr(c, 50, 132, 30, 8, 180);
+      box3(22, 64, 80, 70, 22, -10, lin(c, 22, 0, 102, 0, [[0, 245], [1, 205]]), 252, lin(c, 102, 0, 124, 0, [[0, 175], [1, 130]]));
+      for (let i = 0; i < 6; i++) ln(c, [106 + i * 3, 70 - i * 1.4, 106 + i * 3, 104 - i * 1.4], 110, 0.6);
+      rr(c, 29, 71, 66, 52, 6, 150); rr(c, 31, 73, 62, 48, 6, 18);
+      c.save(); c.beginPath(); if (c.roundRect) c.roundRect(31, 73, 62, 48, 6); else c.rect(31, 73, 62, 48); c.clip();
+      fr(c, 31, 73, 62, 48, rad(c, 62, 97, 2, 44, [[0, 95], [1, 15]]));
+      sk(c, 205, 0.8); for (let k = 0; k < 6; k++) { c.beginPath(); c.ellipse(64, 98, 24, 2 + k * 2.5, -0.35, 0, Math.PI * 2); c.stroke(); }
+      for (let k = -2; k <= 2; k++) { c.beginPath(); c.ellipse(64, 98, 5 + Math.abs(k) * 5, 14, -0.35 + Math.PI / 2, 0, Math.PI * 2); c.stroke(); }
+      pg(c, [35, 75, 58, 75, 33, 112, 33, 92], gv(255, 0.32)); pg(c, [62, 75, 68, 75, 40, 121, 35, 121], gv(255, 0.16));
       c.restore();
-      fr(c, 94, 136, 8, 2, 90); el(c, 104, 138, 1.4, 1.4, 255);
-      // teclado
-      pg(c, [22, 186, 112, 186, 124, 206, 10, 206], 222); pg(c, [10, 206, 124, 206, 124, 210, 10, 210], 100);
-      for (let r = 0; r < 4; r++) for (let k = 0; k < 14; k++) { const t = (r + 0.5) / 4, xl = 22 + (10 - 22) * t, xr = 112 + (124 - 112) * t, w = (xr - xl) / 14; fr(c, xl + k * w + 1, 188 + r * 4.6, w - 1.6, 2.6, 120); }
-      // impresora
-      pg(c, [126, 150, 160, 150, 160, 184, 126, 184], 226); pg(c, [126, 150, 134, 142, 160, 142, 160, 150], 246);
-      pg(c, [132, 143, 136, 126, 158, 126, 156, 143], 252); for (let i = 0; i < 3; i++) fr(c, 138, 130 + i * 4, 14, 1, 150);
-      fr(c, 130, 160, 28, 3, 50); el(c, 152, 174, 1.4, 1.4, 60);
+      fr(c, 58, 126, 14, 3, 150); el(c, 92, 128, 1.4, 1.4, 60);
+      // teclado inclinado
+      pg(c, [4, 184, 96, 176, 106, 198, 10, 208], lin(c, 0, 176, 0, 208, [[0, 240], [1, 205]])); pg(c, [10, 208, 106, 198, 106, 202, 10, 212], 110);
+      for (let r = 0; r < 4; r++) { const t = (r + 0.5) / 4, yl = 184 + t * 24, yr = 176 + t * 22, xl = 4 + 6 * t, wr = 92 + 4 * t; for (let k = 0; k < 14; k++) { const f = k / 14; fr(c, xl + f * wr + 1, yl + (yr - yl) * f - 1.5, wr / 14 - 1.6, 3, 145); } }
       const o = dither(lum(c), [K, W]);
-      onto(o, () => {
-        G.text("DON'T FEAR", PW / 2, 9, W, { s: 2, al: 'c', b: true });
-        G.text('THE COMPUTER', PW / 2, 29, W, { s: 2, al: 'c' });
-        G.dash(14, 47, PW - 28, W, 1, 1);
-      });
+      onto(o, () => { G.text("DON'T FEAR", PW / 2, 9, W, { s: 2, al: 'c', b: true }); G.text('THE COMPUTER', PW / 2, 29, W, { s: 2, al: 'c' }); G.dash(14, 47, PW - 28, W, 1, 1); });
       return o.c;
     },
-    // 2) tienda nocturna en perspectiva isométrica, 1 bit
+    // 2) tienda nocturna en isométrica, 1 bit, con dos clientes en la barra
     shop() {
       const c = work();
-      fr(c, 0, 0, PW, PH, 255);
-      fr(c, 6, 6, PW - 12, PH - 12, 0);
-      for (let i = 0; i < 40; i++) fr(c, 90 + Math.random() * 64, 8 + Math.random() * 40, 1, 1, 220);
+      fr(c, 0, 0, PW, PH, 255); fr(c, 6, 6, PW - 12, PH - 12, 0);
+      for (let i = 0; i < 50; i++) fr(c, 96 + Math.random() * 58, 8 + Math.random() * 46, 0.8, 0.8, 230);
       c.save(); c.beginPath(); c.rect(6, 6, PW - 12, PH - 12); c.clip();
-      c.transform(1, 0.34, 0, 1, 0, -6);
-      // cartel grande
-      fr(c, 4, 8, 118, 34, 255); fr(c, 4, 8, 118, 2, 0); fr(c, 4, 40, 118, 2, 0);
-      const t1 = G.fsprite('電脳食堂', '28px ' + G.FONT_JP, K, 128); c.drawImage(t1, 8, 10, Math.min(110, t1.width), 28);
-      fr(c, 4, 42, 118, 10, 0); { const t2 = G.fsprite('DENNOU SHOKUDO', '9px ' + G.FONT_JP, W, 128); c.drawImage(t2, 10, 43, Math.min(100, t2.width), 8); }
-      // cartel vertical
-      fr(c, 126, 20, 26, 74, 255); fr(c, 126, 20, 26, 2, 0); fr(c, 126, 92, 26, 2, 0);
-      ['2', '4', '時'].forEach((ch, i) => { const s = G.fsprite(ch, '20px ' + G.FONT_JP, K, 128); c.drawImage(s, 130, 24 + i * 22, 18, 20); });
-      // escaparate: dibujo de línea limpio (blanco y negro, casi sin grises)
-      fr(c, 4, 54, 118, 140, 255);
-      fr(c, 12, 60, 40, 16, 0); for (let i = 0; i < 3; i++) fr(c, 15, 63 + i * 4, 20 + (i * 9) % 14, 2, 255);
-      el(c, 92, 62, 8, 3, 0); ln(c, [92, 54, 92, 60], 0, 1.4);
-      // barra
-      fr(c, 4, 112, 118, 3, 0); fr(c, 4, 115, 118, 22, 128); fr(c, 4, 137, 118, 2, 0);
-      // cliente que come (de lado)
-      el(c, 32, 86, 9, 9, 255); sk(c, 0, 1.6); c.beginPath(); c.ellipse(32, 86, 9, 9, 0, 0, 7); c.stroke();
-      pg(c, [23, 84, 24, 76, 36, 74, 42, 80, 41, 84], 0); el(c, 37, 87, 1.4, 1.4, 0); ln(c, [35, 92, 39, 91], 0, 1.2);
-      pg(c, [22, 96, 44, 96, 48, 112, 20, 112], 255); ln(c, [22, 96, 20, 112], 0, 1.6); ln(c, [44, 96, 48, 112], 0, 1.6); ln(c, [22, 96, 44, 96], 0, 1.6);
-      ln(c, [40, 100, 52, 108], 0, 2); pg(c, [50, 104, 64, 104, 61, 111, 53, 111], 0); fr(c, 50, 103, 14, 2, 255); ln(c, [55, 92, 58, 104], 0, 1); ln(c, [58, 92, 60, 104], 0, 1);
-      // cliente de espaldas
-      el(c, 94, 92, 10, 10, 255); sk(c, 0, 1.6); c.beginPath(); c.ellipse(94, 92, 10, 10, 0, 0, 7); c.stroke();
-      for (let k = -7; k <= 7; k += 2.5) ln(c, [94 + k * 0.6, 83, 94 + k, 99], 0, 0.9);
-      pg(c, [80, 102, 108, 102, 112, 112, 76, 112], 255); ln(c, [80, 102, 76, 112], 0, 1.6); ln(c, [108, 102, 112, 112], 0, 1.6); ln(c, [80, 102, 108, 102], 0, 1.6);
-      // taburetes y suelo a cuadros
-      for (let y = 152; y < 194; y += 8) for (let x = 4; x < 122; x += 8) if (((x - 4) / 8 + (y - 152) / 8) % 2 < 1) fr(c, x, y, 8, 8, 0);
-      for (const sx of [26, 62, 98]) { fr(c, sx - 1.5, 140, 3, 18, 0); el(c, sx, 141, 10, 4, 0); el(c, sx, 140, 7, 2.5, 255); el(c, sx, 158, 7, 3, 0); }
-      // marcos del escaparate
-      for (const x of [4, 62, 120]) fr(c, x, 54, 3, 140, 0);
-      fr(c, 4, 54, 119, 3, 0); fr(c, 4, 192, 119, 3, 0);
+      // fachada (baja hacia la derecha)
+      c.save(); c.transform(1, 0.42, 0, 1, 0, -2);
+      fr(c, 6, 4, 18, 48, 255); fr(c, 6, 4, 18, 1.5, 0);
+      ['ラ', 'ー', 'メ', 'ン'].forEach((ch, i) => { const s = G.fsprite(ch, '12px ' + G.FONT_JP, K, 128); c.drawImage(s, 9, 7 + i * 11, 12, 11); });
+      fr(c, 26, 8, 96, 30, 255); fr(c, 26, 8, 96, 2, 0); fr(c, 26, 36, 96, 2, 0); fr(c, 26, 8, 2, 30, 0);
+      { const t1 = G.fsprite('電脳食堂', '26px ' + G.FONT_JP, K, 128); c.drawImage(t1, 30, 10, 88, 26); }
+      fr(c, 26, 38, 96, 9, 0); { const t2 = G.fsprite('DENNOU SHOKUDO', '9px ' + G.FONT_JP, W, 128); c.drawImage(t2, 32, 39.5, 84, 7); }
+      fr(c, 6, 50, 116, 150, 255);
+      fr(c, 12, 56, 46, 18, 0); for (let i = 0; i < 3; i++) fr(c, 15, 59 + i * 5, 22 + (i * 11) % 16, 2, 255);
+      fr(c, 66, 58, 50, 10, 225);
+      fr(c, 6, 104, 116, 3, 0); fr(c, 6, 107, 116, 20, 128); fr(c, 6, 127, 116, 2, 0);
+      // cliente que come fideos (de perfil)
+      el(c, 30, 78, 9, 10, 255); sk(c, 0, 1.5); c.beginPath(); c.ellipse(30, 78, 9, 10, 0, 0, 7); c.stroke();
+      pg(c, [21, 76, 22, 67, 34, 66, 40, 72, 39, 76], 0);
+      el(c, 35, 79, 1.3, 1.6, 0); ln(c, [33, 85, 37, 84], 0, 1.2); ln(c, [38, 78, 40, 82, 38, 82], 0, 1);
+      pg(c, [18, 88, 42, 88, 46, 104, 14, 104], 255); ln(c, [18, 88, 14, 104], 0, 1.5); ln(c, [42, 88, 46, 104], 0, 1.5); ln(c, [24, 88, 30, 93, 36, 88], 0, 1.2);
+      ln(c, [40, 94, 50, 100], 0, 2.2);
+      pg(c, [46, 98, 62, 98, 59, 104, 49, 104], 0); fr(c, 46, 97, 16, 1.6, 255);
+      ln(c, [52, 84, 55, 97], 0, 1); ln(c, [55, 84, 57, 97], 0, 1);
+      for (let k = 0; k < 3; k++) qd(c, [50 + k * 4, 94, 48 + k * 4, 90, 51 + k * 4, 87], 0, 0.7);
+      // cliente de espaldas, pelo claro
+      el(c, 92, 86, 10, 10, 255); sk(c, 0, 1.5); c.beginPath(); c.ellipse(92, 86, 10, 10, 0, 0, 7); c.stroke();
+      for (let k = -8; k <= 8; k += 2) ln(c, [92 + k * 0.5, 77, 92 + k, 95], 0, 0.6);
+      pg(c, [78, 96, 106, 96, 110, 104, 74, 104], 255); ln(c, [78, 96, 74, 104], 0, 1.5); ln(c, [106, 96, 110, 104], 0, 1.5); ln(c, [78, 96, 106, 96], 0, 1.5);
+      ln(c, [106, 98, 116, 100], 0, 1.6); fr(c, 114, 96, 6, 4, 0);
+      // suelo a cuadros y taburetes
+      for (let y = 150; y < 200; y += 8) for (let x = 6; x < 122; x += 8) if (((x - 6) / 8 + (y - 150) / 8) % 2 < 1) fr(c, x, y, 8, 8, 0);
+      for (const sx2 of [24, 60, 96]) { fr(c, sx2 - 1.5, 131, 3, 18, 0); el(c, sx2, 132, 10, 4.5, 0); el(c, sx2, 131, 7, 2.5, 255); el(c, sx2, 150, 7, 3, 0); }
+      for (const x of [6, 64, 120]) fr(c, x, 50, 3, 150, 0); fr(c, 6, 50, 117, 3, 0);
+      c.restore();
+      // cartel de la esquina (se va hacia el fondo)
+      c.save(); c.transform(1, -0.42, 0, 1, 0, 0);
+      fr(c, 126, 106, 26, 70, 255); fr(c, 126, 106, 2, 70, 0);
+      ['2', '4', '時', '間'].forEach((ch, i) => { const s = G.fsprite(ch, '16px ' + G.FONT_JP, K, 128); c.drawImage(s, 131, 110 + i * 16, 16, 15); });
+      fr(c, 126, 178, 26, 90, 40);
+      c.restore();
       c.restore();
       const o = dither(lum(c), [K, W]);
       onto(o, () => { G.rect(PW - 14, PH - 14, 7, 7, W); G.circ(PW - 11, PH - 11, 2, K, K); });
       return o.c;
     },
-    // 3) retrato en semitono (cara inventada mirando hacia arriba)
+    // 3) retrato en semitono: cabeza mirando hacia arriba, luz fuerte desde la derecha
     halftone() {
       const c = work();
-      fr(c, 0, 0, PW, PH, lin(c, 160, 0, 0, 200, [[0, 252], [0.5, 180], [1, 115]]));
-      pg(c, [0, 224, 0, 164, 30, 144, 60, 152, 82, 174, 106, 188, 160, 196, 160, 224], 22);
-      pg(c, [94, 224, 106, 186, 134, 172, 160, 176, 160, 224], 218);
-      pg(c, [62, 136, 104, 130, 112, 178, 70, 182], lin(c, 60, 0, 112, 0, [[0, 15], [0.55, 80], [1, 205]]));
-      c.save(); c.translate(88, 90); c.rotate(-0.28);
-      c.save(); c.beginPath(); c.ellipse(0, 0, 38, 48, 0, 0, Math.PI * 2); c.clip();
-      fr(c, -50, -60, 100, 120, lin(c, -38, 0, 38, 0, [[0, 18], [0.32, 60], [0.6, 195], [1, 248]]));
-      el(c, 12, -36, 22, 11, gv(255, 0.35));
+      fr(c, 0, 0, PW, PH, lin(c, 160, 0, 0, 224, [[0, 252], [0.55, 205], [1, 150]]));
+      for (let i = 0; i < 9; i++) ln(c, [118 + i * 5, 0, 160, 42 - i * 5], gv(255, 0.5), 1.5);             // rayos de luz arriba
+      pg(c, [0, 224, 4, 194, 28, 176, 58, 168, 80, 184, 102, 168, 132, 176, 156, 194, 160, 224], lin(c, 0, 0, 160, 0, [[0, 20], [0.6, 60], [1, 120]])); // chaqueta
+      pg(c, [62, 168, 80, 204, 98, 168, 90, 164, 80, 186, 70, 164], 240);                                   // cuello de camisa
+      pg(c, [60, 120, 100, 120, 102, 168, 80, 184, 58, 168], lin(c, 58, 0, 102, 0, [[0, 115], [0.5, 170], [1, 228]])); // cuello
+      el(c, 80, 136, 24, 10, gv(0, 0.4));                                                                 // sombra de la barbilla
+      c.save(); c.translate(80, 86); c.rotate(-0.1);
+      el(c, -40, 4, 6, 11, 140); el(c, -40, 4, 2.5, 6, 90); el(c, 40, 2, 6, 11, 230); el(c, 40, 2, 2.5, 6, 170); // orejas
+      c.save(); c.beginPath(); c.ellipse(0, 0, 38, 50, 0, 0, Math.PI * 2); c.clip();
+      fr(c, -50, -60, 100, 120, lin(c, -38, 0, 38, 0, [[0, 155], [0.4, 208], [0.7, 246], [1, 255]]));
+      el(c, -30, 16, 10, 18, gv(0, 0.18)); el(c, 0, 52, 34, 13, gv(0, 0.3));
       c.restore();
-      el(c, -12, -6, 9, 5, gv(25, 0.9)); el(c, 15, -8, 8, 4.5, gv(35, 0.85));
-      ln(c, [-22, -15, -4, -16], gv(10, 0.9), 3); ln(c, [7, -18, 25, -16], gv(20, 0.85), 2.6);
-      el(c, -10, -6, 2.5, 1.2, 230); el(c, 17, -8, 2.5, 1.2, 250);
-      ln(c, [3, -6, 6, 12], gv(250, 0.7), 2.2); pg(c, [-4, 4, 4, 18, -8, 20], gv(15, 0.75)); el(c, 2, 20, 8, 3.4, gv(10, 0.9)); el(c, 8, 18, 3, 2.4, gv(255, 0.6));
-      qd(c, [-12, 31, 1, 35, 15, 29], 10, 2.6); el(c, 2, 37, 9, 2.2, gv(240, 0.55));
-      el(c, 24, 10, 9, 14, gv(255, 0.3)); el(c, -37, 2, 5, 11, 15);
-      qd(c, [-30, 20, -10, 46, 22, 40], gv(0, 0.5), 3);
+      pg(c, [-41, -4, -41, -28, -30, -47, -8, -56, 14, -55, 33, -45, 41, -27, 40, -6, 35, -22, 20, -32, 0, -34, -20, -31, -34, -20], 22); // pelo corto
+      for (let k = 0; k < 9; k++) ln(c, [-24 + k * 6, -50 + Math.abs(k - 4) * 1.4, -20 + k * 6, -40], 90, 1);
+      // cejas altas, ojos mirando hacia arriba
+      ln(c, [-27, -13, -17, -19, -6, -16], 20, 4); ln(c, [6, -16, 17, -20, 27, -14], 30, 4);
+      el(c, -15, -3, 9, 4.6, 248); el(c, 15, -4, 9, 4.6, 252);
+      el(c, -15, -6, 4.2, 4.2, 12); el(c, 15, -7, 4.2, 4.2, 12); el(c, -13.5, -7.5, 1.4, 1.4, 255); el(c, 16.5, -8.5, 1.4, 1.4, 255);
+      qd(c, [-25, -3, -15, -11, -5, -4], 8, 2.4); qd(c, [5, -4, 15, -12, 25, -4], 8, 2.4);
+      qd(c, [-23, 2, -15, 4, -7, 1], 110, 1.2); qd(c, [7, 1, 15, 3, 23, 0], 150, 1.2);
+      // nariz: arista clara, sombra lateral y orificios pequeños
+      pg(c, [-2, -1, -7, 14, -2, 16], gv(0, 0.3)); ln(c, [2, -2, 4, 12], 255, 2.4);
+      el(c, 0, 17, 8, 3, gv(0, 0.45)); el(c, -4, 17, 2.4, 1.5, 15); el(c, 5, 17, 2.4, 1.5, 25); el(c, 2, 13, 3, 2.4, 255);
+      // boca entreabierta
+      el(c, 0, 30, 10, 2.6, 15); qd(c, [-11, 29, 0, 26, 11, 29], 70, 1.4); el(c, 1, 34.5, 8, 2, gv(255, 0.7)); el(c, 0, 41, 9, 2.5, gv(0, 0.25));
       c.restore();
-      return halftone(lum(c), K, W, 3).c;
+      return halftone(lum(c), K, W, 4).c;
     },
-    // 4) chica con visor y cables, en glitch con colores desplazados
     glitch() {
       const o = G.mkCanvas(PW, PH), c = o.x;
       fr(c, 0, 0, PW, PH, 0);
-      const art = (col, dx) => {
+      const art = (col, dx, fillK) => {
         c.save(); c.translate(dx, 0);
-        // cables que salen del visor hacia arriba
-        for (const p of [[66, 64, 44, 40, 70, 16, 48, -4], [80, 61, 88, 34, 60, 20, 72, -4], [98, 59, 118, 38, 104, 16, 126, -4], [112, 62, 142, 52, 148, 24, 166, 14], [60, 70, 30, 60, 18, 38, 4, 28]]) bz(c, p, col, 1.6);
-        // pelo corto (media melena) y mechones
-        bz(c, [50, 128, 38, 92, 46, 48, 86, 42, 126, 38, 136, 92, 126, 128], col, 1.7);
-        for (const p of [[58, 94, 54, 106, 54, 118, 50, 128], [64, 96, 60, 108, 62, 118, 58, 126], [118, 88, 122, 102, 122, 116, 124, 126], [112, 92, 116, 104, 114, 116, 118, 124], [72, 58, 70, 62, 68, 66, 66, 70], [92, 54, 92, 58, 90, 62, 90, 66]]) bz(c, p, col, 1.3);
-        // visor
-        ln(c, [54, 68, 118, 61, 122, 86, 58, 94, 54, 68], col, 1.8); ln(c, [57, 81, 120, 74], col, 1.3);
-        ln(c, [48, 70, 54, 68, 58, 94, 52, 94, 48, 70], col, 1.4); ln(c, [74, 66, 76, 91], col, 1.1); ln(c, [100, 63, 103, 88], col, 1.1);
-        // cara
-        bz(c, [60, 94, 64, 110, 74, 122, 86, 128, 98, 126, 108, 116, 114, 92], col, 1.6);
-        ln(c, [80, 114, 90, 113], col, 1.5); ln(c, [82, 117, 88, 116], col, 1); ln(c, [88, 104, 87, 107], col, 1.1);
-        // cuello, cuello de la camisa y hombros
-        ln(c, [78, 127, 76, 144], col, 1.5); ln(c, [96, 126, 98, 144], col, 1.5);
-        ln(c, [76, 144, 84, 160, 88, 150, 92, 160, 98, 144], col, 1.5);
-        ln(c, [76, 144, 40, 152, 16, 176], col, 1.7); ln(c, [98, 144, 134, 152, 156, 178], col, 1.7);
-        ln(c, [40, 158, 46, 186], col, 1.2); ln(c, [134, 158, 128, 186], col, 1.2); ln(c, [88, 160, 88, 186], col, 1.1);
+        const J = (p) => p.map((v) => v + (Math.random() - 0.5) * 0.9); // trazo a mano
+        for (const p of [[64, 64, 40, 36, 66, 14, 44, -4], [76, 60, 84, 30, 54, 18, 66, -4], [94, 58, 112, 34, 98, 12, 122, -4], [108, 62, 140, 52, 146, 22, 166, 10], [56, 70, 24, 60, 16, 38, 0, 28], [100, 58, 104, 36, 128, 30, 134, -4]]) { bz(c, J(p), col, 2); bz(c, J(p.map((v, i) => v + (i % 2 ? 0 : 2.5))), col, 1.1); }
+        c.beginPath(); c.moveTo(50, 134); c.bezierCurveTo(36, 100, 42, 52, 84, 46); c.bezierCurveTo(126, 42, 136, 96, 126, 134); c.lineTo(118, 126); c.lineTo(114, 136); c.lineTo(106, 118); c.lineTo(68, 118); c.lineTo(62, 136); c.lineTo(58, 124); c.closePath();
+        if (fillK) { c.fillStyle = K; c.fill(); }
+        sk(c, col, 1.8); c.stroke();
+        for (const p of [[58, 94, 52, 106, 54, 120, 50, 130], [64, 96, 60, 108, 62, 120, 58, 128], [118, 88, 122, 102, 122, 116, 124, 128], [112, 92, 116, 104, 114, 116, 118, 124], [72, 52, 70, 58, 68, 62, 66, 66], [92, 48, 92, 54, 90, 58, 90, 62], [104, 50, 108, 56, 110, 60, 112, 64]]) bz(c, J(p), col, 1.3);
+        c.beginPath(); c.moveTo(60, 94); c.bezierCurveTo(64, 112, 74, 126, 86, 128); c.bezierCurveTo(98, 126, 108, 114, 114, 90); c.closePath(); if (fillK) { c.fillStyle = K; c.fill(); } sk(c, col, 1.7); c.stroke();
+        c.beginPath(); c.moveTo(52, 68); c.lineTo(120, 60); c.lineTo(126, 86); c.lineTo(58, 96); c.closePath(); if (fillK) { c.fillStyle = K; c.fill(); } sk(c, col, 2); c.stroke();
+        ln(c, J([56, 82, 124, 75]), col, 1.3); ln(c, J([46, 70, 52, 68, 58, 96, 50, 96, 46, 70]), col, 1.5); ln(c, J([120, 60, 132, 62, 136, 84, 126, 86]), col, 1.5);
+        ln(c, J([74, 66, 76, 92]), col, 1); ln(c, J([102, 63, 105, 89]), col, 1); ln(c, J([60, 70, 116, 64]), col, 0.8);
+        ln(c, J([80, 113, 90, 112]), col, 1.6); ln(c, J([82, 117, 88, 116]), col, 1.1); ln(c, J([88, 103, 87, 106]), col, 1.1);
+        ln(c, J([78, 127, 76, 146]), col, 1.6); ln(c, J([96, 126, 98, 146]), col, 1.6);
+        ln(c, J([76, 146, 84, 162, 88, 152, 92, 162, 98, 146]), col, 1.6);
+        ln(c, J([76, 146, 40, 154, 14, 178]), col, 1.8); ln(c, J([98, 146, 134, 154, 156, 180]), col, 1.8);
+        ln(c, J([40, 160, 46, 182]), col, 1.2); ln(c, J([134, 160, 128, 182]), col, 1.2); ln(c, J([88, 162, 88, 182]), col, 1.1);
         c.restore();
       };
-      art(B, -2); art(Gr, 2); art(W, 0);
-      onto(o, () => {
-        for (const [t, y] of [["IT'S ALL IN", 190], ['THE CODE', 206]]) { // texto grande con los colores desplazados
-          G.text(t, PW / 2 - 2, y, B, { s: 2, al: 'c', b: true }); G.text(t, PW / 2 + 2, y, Gr, { s: 2, al: 'c', b: true }); G.text(t, PW / 2, y, W, { s: 2, al: 'c', b: true });
-        }
-      });
+      art(B, -2, false); art(Gr, 2, false); art(W, 0, true);
+      onto(o, () => { for (const [t, y] of [["IT'S ALL IN", 192], ['THE CODE', 208]]) { G.text(t, PW / 2 - 2, y, B, { s: 2, al: 'c', b: true }); G.text(t, PW / 2 + 2, y, Gr, { s: 2, al: 'c', b: true }); G.text(t, PW / 2, y, W, { s: 2, al: 'c', b: true }); } });
       snap(o);
-      for (let k = 0; k < 4; k++) { const y = Math.floor(Math.random() * (PH - 8)), h = 2 + Math.floor(Math.random() * 5), dx = Math.round((Math.random() - 0.5) * 12); c.drawImage(o.c, 0, y, PW, h, dx, y, PW, h); }
+      for (let k = 0; k < 5; k++) { const y = Math.floor(Math.random() * (PH - 8)), h = 2 + Math.floor(Math.random() * 5), dx = Math.round((Math.random() - 0.5) * 14); c.drawImage(o.c, 0, y, PW, h, dx, y, PW, h); }
       for (let y = 1; y < PH; y += 2) fr(c, 0, y, PW, 1, 'rgba(0,0,0,0.45)');
       snap(o);
       return o.c;
@@ -194,39 +207,28 @@
       ln(c, [52, 118, 60, 146], 140, 1.2);
       return scan(lum(c), Gr, K).c;
     },
-    // 6) mano de alambre que sale del monitor y toca un dedo
+    // 6) mano de alambre que sale del monitor y toca el dedo de una mano de verdad
     touch() {
       const c = work();
-      fr(c, 0, 0, PW, PH, 0);
-      pg(c, [8, 12, 22, 4, 84, 4, 70, 12], 240); pg(c, [70, 12, 84, 4, 84, 52, 70, 60], 130);
-      rr(c, 6, 10, 66, 52, 3, lin(c, 6, 0, 72, 0, [[0, 230], [1, 190]])); rr(c, 12, 16, 46, 38, 4, 20);
-      for (let i = 0; i < 3; i++) el(c, 64, 24 + i * 8, 1.6, 1.6, 90);
-      // la mano (apuntando con el índice) en coordenadas propias: muñeca en 0, dedo hacia +x
-      const handPath = (x) => {
-        x.beginPath(); x.rect(-34, -8, 34, 17);
-        x.moveTo(0, -12); x.lineTo(26, -12); x.lineTo(31, -6); x.lineTo(31, 9); x.lineTo(22, 14); x.lineTo(0, 12); x.closePath();
-        x.moveTo(26, -12); x.lineTo(56, -11); x.quadraticCurveTo(61, -8, 56, -5); x.lineTo(28, -4); x.closePath();
-        x.moveTo(37, -1); x.ellipse(31, -1, 6, 3.6, 0, 0, Math.PI * 2); x.moveTo(37, 5); x.ellipse(31, 5, 6, 3.6, 0, 0, Math.PI * 2); x.moveTo(34, 11); x.ellipse(29, 11, 5, 3.4, 0, 0, Math.PI * 2);
-        x.moveTo(6, -12); x.lineTo(18, -19); x.lineTo(23, -16); x.lineTo(14, -10); x.closePath();
-      };
-      // mano de verdad desde abajo a la derecha (manga oscura y puño blanco)
-      c.save(); c.translate(152, 196); c.rotate(-2.12); c.scale(1.45, 1.45);
-      fr(c, -70, -13, 40, 26, 70); fr(c, -32, -12, 6, 24, 248);
-      handPath(c); fill(c, 205); c.fill(); sk(c, 120, 1); c.stroke();
-      ln(c, [30, -8, 55, -8], 150, 1); el(c, 55, -8, 2, 1.5, 245);
+      fr(c, 0, 0, PW, PH, rad(c, 100, 120, 10, 170, [[0, 24], [1, 0]]));
+      pg(c, [4, 14, 22, 4, 86, 4, 70, 14], 238); pg(c, [70, 14, 86, 4, 86, 50, 70, 60], 140);
+      rr(c, 2, 12, 70, 50, 3, lin(c, 2, 0, 72, 0, [[0, 225], [1, 185]])); rr(c, 8, 18, 46, 38, 4, 15);
+      for (let i = 0; i < 3; i++) el(c, 63, 24 + i * 9, 2, 2, 100); fr(c, 60, 50, 8, 2, 90);
+      c.save(); c.translate(165, 184); c.rotate(-2.2); c.scale(1.5, 1.5);
+      fr(c, -70, -14, 54, 28, lin(c, 0, -14, 0, 14, [[0, 110], [1, 60]])); fr(c, -22, -13, 6, 26, 248);
+      handPath(c); fill(c, lin(c, 0, -14, 0, 16, [[0, 228], [1, 165]])); c.fill(); sk(c, 110, 0.8); c.stroke();
+      ln(c, [26, -8, 54, -8], gv(255, 0.6), 1); el(c, 56, -8, 2.2, 1.6, 245); ln(c, [6, -2, 22, 2], 140, 0.6);
       c.restore();
       const o = dither(lum(c), [K, L, W]), x = o.x;
-      fr(x, 12, 16, 46, 38, K); for (let y = 18; y < 52; y += 3) for (let k = 14; k < 56; k += 3) if (Math.random() < 0.25) fr(x, k, y, 1, 1, Gr);
-      // mano de alambre que sale de la pantalla (rejilla verde recortada a la forma de la mano)
-      x.save(); x.translate(40, 52); x.rotate(0.9); x.scale(1.4, 1.4);
+      for (let y = 20; y < 54; y += 3) for (let k = 10; k < 52; k += 3) if (Math.random() < 0.2) fr(x, k, y, 1, 1, Gr);
+      x.save(); x.translate(28, 52); x.rotate(0.85); x.scale(1.7, 1.7);
       x.save(); handPath(x); x.clip();
-      sk(x, Gr, 0.7); for (let k = -20; k < 20; k += 3.2) { x.beginPath(); x.moveTo(-40, k); x.lineTo(64, k + Math.sin(k) * 0.8); x.stroke(); }
-      for (let k = -36; k < 64; k += 3.6) { x.beginPath(); x.moveTo(k, -22); x.quadraticCurveTo(k + 2, 0, k, 22); x.stroke(); }
-      x.restore(); sk(x, Gr, 0.9); handPath(x); x.stroke();
+      sk(x, Gr, 0.7); for (let k = -22; k < 22; k += 3) { x.beginPath(); x.moveTo(-40, k); x.quadraticCurveTo(10, k + 2, 64, k); x.stroke(); }
+      for (let k = -36; k < 64; k += 3.4) { x.beginPath(); x.moveTo(k, -24); x.quadraticCurveTo(k + 2, 0, k, 24); x.stroke(); }
+      x.restore(); sk(x, Gr, 1); handPath(x); x.stroke();
       x.restore();
-      // destello donde se tocan
-      const sx = 103, sy = 113, cols = [W, B, Gr, L];
-      for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2 + 0.2, l = i % 3 === 0 ? 34 : i % 2 ? 18 : 10; sk(x, cols[i % 4], 1); x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }
+      const sx = 103, sy = 118, cols = [W, B, Gr, L];
+      for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2 + 0.15, l = i % 4 === 0 ? 42 : i % 2 ? 20 : 12; sk(x, cols[i % 4], 1); x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }
       el(x, sx, sy, 3, 3, W);
       snap(o);
       return o.c;
@@ -235,26 +237,26 @@
     knight() {
       const o = G.mkCanvas(PW, PH);
       onto(o, (c) => {
-        G.rect(0, 0, PW, PH, K); G.drect(0, 0, PW, PH, 2, L, null);
+        G.rect(0, 0, PW, PH, K); G.drect(0, 0, PW, PH, 3, L, null);
         drawSprite(c, sprite('Born to Quest', '700 23px ' + G.FONT_GOTH, W, PW - 8), PW / 2, 3);
-        G.box(8, 34, 144, 156, W); G.rect(9, 35, 142, 154, K); G.drect(9, 35, 142, 115, 3, L, null);
-        for (let i = 0; i < 9; i++) { G.rect(12, 74 + i * 4, 28, 3, L); G.rect(12, 77 + i * 4, 28, 1, K); }
-        for (let i = 0; i < 12; i++) { G.rect(128, 102 + i * 4, 21, 3, L); G.rect(128, 105 + i * 4, 21, 1, K); }
-        G.rect(42, 66, 36, 30, Gr); G.box(42, 66, 36, 30, K); G.rect(46, 70, 26, 20, L); G.drect(46, 70, 26, 20, 4, W, null);
-        G.rect(14, 92, 42, 42, Gr); G.box(14, 92, 42, 42, K); G.drect(44, 92, 12, 42, 6, K, null);
-        G.rect(19, 97, 26, 24, W); G.drect(19, 97, 26, 24, 3, L, null); for (let i = 0; i < 4; i++) G.rect(22, 101 + i * 5, 10 + (i * 7) % 14, 1, K);
-        G.rect(26, 134, 18, 6, Gr); G.box(26, 134, 18, 6, K);
-        G.rect(9, 150, 142, 39, L); G.drect(9, 150, 142, 39, 3, K, null); G.rect(9, 150, 142, 1, K);
-        G.rect(18, 160, 24, 14, W); for (let i = 0; i < 3; i++) G.rect(21, 163 + i * 3, 17, 1, K);
-        G.rect(108, 166, 26, 15, W); for (let i = 0; i < 3; i++) G.rect(111, 169 + i * 3, 19, 1, K);
-        G.rect(56, 142, 48, 10, L); G.box(56, 142, 48, 10, K); for (let i = 0; i < 10; i++) { G.px(59 + i * 4, 145, K); G.px(59 + i * 4, 148, K); }
-        // caballero
-        G.rect(82, 96, 44, 54, B); G.drect(82, 96, 44, 54, 8, K, null); G.circ(86, 104, 8, B, K); G.circ(122, 104, 8, B, K); G.drect(78, 96, 52, 16, 8, K, null);
-        G.rect(95, 100, 20, 50, W); G.drect(95, 100, 20, 50, 3, L, null); G.rect(103, 104, 4, 32, K); G.rect(97, 113, 16, 4, K);
-        G.tri(105, 48, 92, 80, 118, 80, B); G.drect(92, 50, 13, 30, 3, W, null); G.rect(93, 78, 24, 18, B); G.box(93, 78, 24, 18, K);
-        G.rect(96, 85, 18, 2, K); G.rect(104, 80, 2, 12, K); G.rect(92, 94, 26, 6, B); G.drect(92, 94, 26, 6, 8, K, null);
-        // brazos de malla hacia el teclado
-        for (const a of [[84, 104, 93, 112, 70, 142, 62, 137], [118, 106, 127, 114, 90, 146, 81, 140]]) {
+        G.box(8, 34, 144, 156, W); G.rect(9, 35, 142, 154, K); G.drect(9, 35, 142, 154, 2, L, null);
+        for (let i = 0; i < 10; i++) { G.rect(12, 62 + i * 4, 34, 3, i % 2 ? L : Gr); G.rect(12, 65 + i * 4, 34, 1, K); }
+        for (let i = 0; i < 12; i++) { G.rect(126, 104 + i * 4, 23, 3, i % 2 ? L : Gr); G.rect(126, 107 + i * 4, 23, 1, K); }
+        G.rect(44, 70, 36, 30, Gr); G.box(44, 70, 36, 30, K); G.rect(48, 74, 26, 20, W); G.drect(48, 74, 26, 20, 4, Gr, null);
+        G.rect(12, 96, 46, 44, Gr); G.box(12, 96, 46, 44, K); G.drect(46, 96, 12, 44, 6, K, null);
+        G.rect(17, 101, 28, 24, W); G.drect(17, 101, 28, 24, 3, Gr, null); for (let i = 0; i < 4; i++) G.rect(20, 105 + i * 5, 10 + (i * 7) % 14, 1, K);
+        G.rect(24, 140, 20, 6, Gr); G.box(24, 140, 20, 6, K);
+        G.rect(9, 150, 142, 39, L); G.drect(9, 150, 142, 39, 4, K, null); G.rect(9, 150, 142, 1, K);
+        for (const [px, py] of [[16, 162], [44, 172], [104, 166], [124, 176]]) { G.rect(px, py, 22, 12, Gr); G.box(px, py, 22, 12, K); for (let i = 0; i < 3; i++) G.rect(px + 3, py + 3 + i * 3, 15, 1, K); }
+        G.rect(56, 142, 48, 10, L); G.box(56, 142, 48, 10, K); for (let i = 0; i < 11; i++) { G.px(58 + i * 4, 145, K); G.px(58 + i * 4, 148, K); }
+        // cuerpo de malla, sobreveste con cruz, almófar, cara y yelmo con nasal
+        G.rect(80, 92, 48, 58, B); G.drect(80, 92, 48, 58, 8, K, null);
+        G.circ(84, 100, 9, B, K); G.circ(124, 100, 9, B, K); G.drect(75, 91, 58, 18, 8, K, null);
+        G.rect(93, 98, 24, 52, W); G.drect(93, 98, 24, 52, 3, L, null); G.rect(103, 102, 4, 34, K); G.rect(96, 112, 18, 4, K); G.rect(101, 102, 8, 2, K); G.rect(101, 134, 8, 2, K);
+        G.rect(91, 80, 28, 14, B); G.drect(91, 80, 28, 14, 8, K, null);
+        G.rect(96, 66, 18, 18, W); G.drect(96, 66, 18, 18, 6, L, null); G.rect(100, 73, 3, 2, K); G.rect(108, 73, 3, 2, K); G.rect(103, 79, 5, 1, K);
+        G.tri(105, 40, 90, 70, 120, 70, B); G.drect(90, 42, 15, 28, 3, W, null); G.rect(90, 68, 30, 4, B); G.box(90, 68, 30, 4, K); G.rect(104, 70, 2, 11, B);
+        for (const a of [[82, 104, 92, 112, 70, 142, 62, 137], [118, 106, 127, 114, 90, 146, 81, 140]]) {
           c.save(); c.beginPath(); c.moveTo(a[0], a[1]); for (let i = 2; i < 8; i += 2) c.lineTo(a[i], a[i + 1]); c.closePath();
           c.fillStyle = B; c.fill(); c.clip(); G.drect(56, 100, 76, 50, 8, K, null); c.restore();
           c.beginPath(); c.moveTo(a[0], a[1]); for (let i = 2; i < 8; i += 2) c.lineTo(a[i], a[i + 1]); c.closePath(); c.strokeStyle = K; c.lineWidth = 1; c.stroke();
@@ -322,72 +324,95 @@
       onto(o, () => { G.text('TRUST NO ONE', PW / 2, 10, W, { s: 2, al: 'c' }); G.text('NOT EVEN YOUR COMPUTER', PW / 2, 30, W, { al: 'c' }); G.dash(14, 42, PW - 28, W, 1, 1); });
       return o.c;
     },
-    // 10) calle de noche con lluvia y carteles de neón (azul)
-    city() {
+    // 10) cartel de privacidad: ojo en semitono verde y texto de terminal
+    watch() {
       const c = work();
-      fr(c, 0, 0, PW, PH, lin(c, 0, 0, 0, 130, [[0, 15], [1, 70]]));
-      pg(c, [0, 0, 58, 64, 58, 150, 0, 224], lin(c, 0, 0, 58, 0, [[0, 55], [1, 30]]));
-      pg(c, [160, 0, 102, 64, 102, 150, 160, 224], lin(c, 160, 0, 102, 0, [[0, 45], [1, 25]]));
-      for (let k = 0; k < 7; k++) { const x0 = 2 + k * 8, t = x0 / 58, top = t * 64, bot = 224 - t * 74; for (let y = top + 6; y < bot - 8; y += 10 - t * 4) if (Math.random() < 0.5) fr(c, x0 + 1, y, 5 - t * 2, 5 - t * 2.5, 150 + Math.random() * 100); }
-      for (let k = 0; k < 7; k++) { const x0 = 156 - k * 8, t = (160 - x0) / 58, top = t * 64, bot = 224 - t * 74; for (let y = top + 6; y < bot - 8; y += 10 - t * 4) if (Math.random() < 0.5) fr(c, x0 - 4, y, 5 - t * 2, 5 - t * 2.5, 150 + Math.random() * 100); }
-      fr(c, 58, 64, 44, 86, lin(c, 0, 64, 0, 150, [[0, 25], [1, 55]]));
-      pg(c, [58, 150, 102, 150, 160, 224, 0, 224], lin(c, 0, 150, 0, 224, [[0, 80], [1, 120]]));
-      for (let i = 0; i < 14; i++) { const x = 20 + Math.random() * 120; fr(c, x, 160 + Math.random() * 40, 1.5, 8 + Math.random() * 14, gv(230, 0.6)); }
-      // carteles de neón verticales
-      const sign = (x, y, w, h, txt) => { rr(c, x, y, w, h, 2, 250); txt.split('').forEach((ch, i) => { const s = G.fsprite(ch, '16px ' + G.FONT_JP, K, 128); c.drawImage(s, x + w / 2 - 7, y + 3 + i * 17, 14, 15); }); };
-      sign(16, 34, 18, 74, '電脳館'); sign(128, 44, 18, 58, '酒場'); rr(c, 66, 96, 28, 9, 2, 240);
-      { const s = G.fsprite('BAR 24H', '9px ' + G.FONT_JP, K, 128); c.drawImage(s, 68, 97, 24, 7); }
-      // figura con paraguas
-      c.beginPath(); c.moveTo(68, 132); c.quadraticCurveTo(80, 118, 92, 132); c.closePath(); fill(c, 230); c.fill();
-      ln(c, [80, 126, 80, 150], 230, 1); fr(c, 76.5, 132, 7, 14, 10); fr(c, 77, 146, 2, 8, 10); fr(c, 81, 146, 2, 8, 10);
-      el(c, 80, 156, 12, 2, gv(255, 0.25));
-      for (let i = 0; i < 90; i++) { const x = Math.random() * 170, y = Math.random() * 224; ln(c, [x, y, x - 2, y + 7], gv(210, 0.55), 0.7); }
-      return dither(lum(c), [K, B, L, W]).c;
-    },
-    // 11) perfil en semitono azul
-    profile() {
-      const c = work();
-      // fondo más oscuro a la derecha: el perfil claro se recorta contra él
-      fr(c, 0, 0, PW, PH, lin(c, 0, 0, 160, 0, [[0, 215], [0.55, 150], [1, 70]]));
-      pg(c, [20, 224, 34, 174, 66, 156, 100, 154, 130, 172, 146, 224], lin(c, 0, 150, 0, 224, [[0, 55], [1, 20]]));
-      pg(c, [66, 150, 100, 150, 104, 172, 64, 176], lin(c, 60, 0, 104, 0, [[0, 120], [1, 235]]));
-      const face = [94, 48, 103, 62, 106, 75, 108, 82, 121, 98, 111, 104, 114, 109, 109, 112, 112, 116, 106, 128, 92, 136, 98, 152, 68, 152, 56, 122, 58, 72, 72, 48];
-      pg(c, face, lin(c, 56, 0, 122, 0, [[0, 150], [0.5, 220], [1, 255]]));
-      // pelo recogido y moño
-      pg(c, [58, 74, 70, 48, 94, 46, 100, 56, 86, 58, 74, 74, 68, 104, 60, 122, 50, 96], 25);
-      el(c, 50, 50, 14, 14, 20); el(c, 46, 45, 5, 4, gv(255, 0.3)); ln(c, [62, 58, 76, 50], 90, 1.2);
-      el(c, 76, 98, 5, 8, 150); el(c, 77, 98, 2, 4, 60);
-      // ojo, ceja, nariz, labios y sombra del cuello
-      el(c, 101, 84, 3.4, 1.6, 10); ln(c, [95, 77, 106, 75], 15, 2.2); ln(c, [97, 81, 105, 80], 30, 1);
-      ln(c, [116, 100, 112, 103], 90, 1.2);
-      el(c, 111, 110.5, 3, 1.4, 50); el(c, 111, 114.5, 2.6, 1.4, 90); ln(c, [104, 112, 109, 112], 40, 1);
-      pg(c, [92, 136, 98, 152, 84, 150], gv(0, 0.45));
-      ln(c, [58, 72, 56, 122], gv(0, 0.4), 4);
-      return halftone(lum(c), B, W, 3).c;
-    },
-    // 12) cabeza de alambre en monitor verde
-    wirehead() {
-      const o = G.mkCanvas(PW, PH), c = o.x;
       fr(c, 0, 0, PW, PH, 0);
-      c.save(); c.translate(76, 108);
-      const rx = 42, ry = 54;
-      sk(c, Gr, 1);
-      for (let k = -5; k <= 5; k++) { const y = (k / 6) * ry, w = rx * Math.sqrt(1 - (y / ry) ** 2); c.beginPath(); c.ellipse(0, y, w, w * 0.22, 0, 0, Math.PI * 2); c.stroke(); }
-      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI; c.beginPath(); c.ellipse(0, 0, Math.max(0.5, rx * Math.abs(Math.cos(a))), ry, 0, 0, Math.PI * 2); c.stroke(); }
-      sk(c, Gr, 1.6); c.beginPath(); c.moveTo(rx * 0.86, -ry * 0.42); c.lineTo(rx + 6, -ry * 0.1); c.lineTo(rx + 14, ry * 0.12); c.lineTo(rx + 3, ry * 0.2); c.lineTo(rx + 6, ry * 0.32); c.lineTo(rx + 1, ry * 0.4); c.lineTo(rx + 2, ry * 0.52); c.lineTo(rx * 0.6, ry * 0.8); c.stroke();
-      sk(c, Gr, 1); for (let k = 0; k < 4; k++) { c.beginPath(); c.moveTo(-18 + k * 10, ry * 0.85); c.lineTo(-22 + k * 12, ry + 34); c.stroke(); }
-      for (let k = 0; k < 3; k++) { c.beginPath(); c.ellipse(0, ry + 6 + k * 10, 26 + k * 4, 5, 0, 0, Math.PI); c.stroke(); }
-      el(c, rx * 0.62, -ry * 0.12, 4, 2.4, W);
+      c.save(); c.beginPath(); c.rect(6, 30, 148, 96); c.clip();
+      fr(c, 6, 30, 148, 96, lin(c, 0, 30, 0, 126, [[0, 150], [1, 205]]));
+      qd(c, [0, 52, 70, 30, 160, 50], 60, 9); for (let k = 0; k < 30; k++) { const x = 10 + k * 5, b = Math.sin((k / 30) * Math.PI) * 12; ln(c, [x, 46 - b, x + 4, 41 - b], 35, 1); }
+      qd(c, [10, 80, 80, 48, 152, 74], 110, 2.5);
+      const lid = () => { c.beginPath(); c.moveTo(14, 96); c.quadraticCurveTo(80, 56, 148, 90); c.quadraticCurveTo(84, 126, 14, 96); c.closePath(); };
+      lid(); fill(c, 235); c.fill();
+      c.save(); lid(); c.clip();
+      el(c, 82, 90, 24, 24, rad(c, 82, 90, 6, 24, [[0, 120], [0.7, 80], [1, 30]]));
+      sk(c, 60, 0.7); for (let a = 0; a < 6.28; a += 0.25) { c.beginPath(); c.moveTo(82 + Math.cos(a) * 10, 90 + Math.sin(a) * 10); c.lineTo(82 + Math.cos(a) * 22, 90 + Math.sin(a) * 22); c.stroke(); }
+      el(c, 82, 90, 10, 10, 5); el(c, 90, 82, 6, 3, 255);
+      fr(c, 0, 0, PW, PH, lin(c, 0, 70, 0, 86, [[0, 0, 0.5], [1, 0, 0]]));
       c.restore();
-      for (let y = 1; y < PH; y += 2) fr(c, 0, y, PW, 1, 'rgba(0,0,0,0.4)');
+      qd(c, [14, 96, 80, 56, 148, 90], 15, 3);
+      for (let t = 0.08; t < 0.95; t += 0.06) { const x = (1 - t) * (1 - t) * 14 + 2 * (1 - t) * t * 80 + t * t * 148, y = (1 - t) * (1 - t) * 96 + 2 * (1 - t) * t * 56 + t * t * 90; ln(c, [x, y, x + (t - 0.4) * 10, y - 7], 20, 1.2); }
+      qd(c, [14, 96, 84, 126, 148, 90], 90, 1.4);
+      el(c, 130, 112, 22, 10, gv(255, 0.45));
+      ln(c, [8, 34, 14, 70, 10, 110], 60, 2); ln(c, [14, 34, 20, 66], 70, 1.5);
+      c.restore();
+      const o = halftone(lum(c), K, Gr, 2.6, L);
       onto(o, () => {
-        G.text('NEURAL LINK', 6, 6, Gr, { b: true }); G.text('NODE 13', PW - 6, 6, Gr, { al: 'r' });
-        G.text('UPLOADING MIND...', 6, PH - 22, Gr); const p = 0.64; G.box(6, PH - 12, PW - 12, 7, Gr); G.drect(8, PH - 10, Math.round((PW - 16) * p), 3, 12, Gr, null);
-        G.text('64%', PW - 6, PH - 22, W, { al: 'r', b: true });
+        G.rect(0, 0, PW, 30, K); G.rect(0, 126, PW, PH - 126, K);
+        G.dash(6, 4, 60, Gr, 2, 2); G.dash(94, 4, 60, Gr, 2, 2); G.dash(6, 24, 60, Gr, 2, 2); G.dash(94, 24, 60, Gr, 2, 2);
+        G.text('OFFLINE.', 6, 11, Gr); G.text('NEØ NET', PW - 6, 11, Gr, { al: 'r' });
+        G.rect(73, 5, 14, 18, Gr); G.ell(80, 10, 5, 2.5, K, K); G.circ(80, 10, 1, Gr, Gr); G.ell(80, 18, 5, 2.5, K, K); G.circ(80, 18, 1, Gr, Gr);
+        G.box(6, 28, PW - 12, 98, Gr);
+        G.rect(6, 130, PW - 12, 7, L);
+        G.box(6, 139, PW - 12, 68, Gr);
+        ['> THE NETWORK IS', 'WATCHING EVERY CLICK.', '', '> ENCRYPT YOUR DREAMS.', 'OPT OUT OF THE VOID.', '', '> TAKE BACK YOUR MIND.'].forEach((t, i) => G.text(t, 10, 143 + i * 9, Gr));
+        G.text('STAY OFFLINE. NEØ NET', 8, 212, L);
       });
-      snap(o);
       return o.c;
     },
+    // 11) página de teletexto: figura en mosaico y anuncio inventado
+    teletext() {
+      const o = G.mkCanvas(PW, PH);
+      onto(o, (c) => {
+        G.rect(0, 0, PW, PH, K);
+        G.text('693 NEØTEXT  31 OKT 00:14', 4, 4, W);
+        G.text('-W-', 4, 14, L);
+        const fig = [
+          '....YYYYYY....', '..YYYYYYYYYY..', '.YYWWWWWWWYYY.', '.YWWWWWWWWWYY.', 'YYWWKWWWKWWYY.', 'YYWWWWWWWWWYY.', 'YYWWWKKKWWWYY.', 'YYYWWWWWWWYYY.',
+          'YYYYWWWWWYYYY.', 'YYY..WWW..YYY.', 'YY.WWWWWWWW.YY', 'YY.WWWWWWWWWWW', 'YY.WWWWWWWWWWB', 'YY.WWWWWWW..BB', 'YY.CCCCCCC....', 'YY.CWCWCWC....',
+          'YY.WWWWWWW....', 'YY..WWWWWW....', 'Y...WWWWWW....', 'Y...WWWWWWW...', 'Y..WWWWWWWW...', '...WWWWWWWWW..', '...WWWWWWWWW..', '..WWWWWWWWWW..',
+          '..WWWWWWWWWWW.', '..WWWWWWWWWWW.', '...WW....WW...', '...WW....WW...', '..BBBB..BBBB..', '.BBBBBB.BBBBB.', 'BBBBBBBBBBBBBB', 'BBBBBBBBBBBBBB'];
+        const cmap = { Y: Gr, W: W, K: K, C: L, B: B };
+        fig.forEach((row, j) => row.split('').forEach((ch, i) => { if (cmap[ch]) G.rect(4 + i * 4, 26 + j * 5, 4, 5, cmap[ch]); }));
+        G.text('ONLY 99', 66, 26, Gr, { s: 2 }); G.text('CREDITS!', 64, 44, Gr, { s: 2 });
+        ['UPLOAD YOUR MIND', 'TODAY AND CHAT', 'WITH YOUR OWN', 'COMPUTER 24H'].forEach((t, i) => G.text(t, 64, 66 + i * 9, L));
+        G.text('0800-', 66, 108, Gr, { s: 2 }); G.text('13 13 13', 64, 128, Gr, { s: 2 });
+        G.text('CALL + JACK IN', 64, 152, L);
+        ['14 CR/MIN ON NEØTEL LINES', 'NO REFUNDS. NO ESCAPE.', 'ONLY FOR HUMANS. MAYBE.'].forEach((t, i) => G.text(t, 4, 190 + i * 9, W));
+        G.tri(4, 219, 9, 216, 9, 222, B); G.box(10, 216, 8, 6, B); G.text('GAMES', PW / 2, 216, Gr, { al: 'c' }); G.box(PW - 18, 216, 8, 6, B); G.tri(PW - 4, 219, PW - 9, 216, PW - 9, 222, B);
+      });
+      return o.c;
+    },
+    // 12) ventana VIRUS DETECTED con una calavera tramada
+    virus() {
+      const c = work();
+      fr(c, 0, 0, PW, PH, 0);
+      c.save(); c.beginPath(); c.rect(12, 46, 136, 116); c.clip();
+      el(c, 70, 94, 46, 38, rad(c, 86, 80, 6, 56, [[0, 255], [0.6, 210], [1, 120]]));
+      pg(c, [90, 74, 124, 84, 132, 112, 128, 132, 118, 140, 96, 140, 80, 122], rad(c, 104, 100, 4, 40, [[0, 250], [1, 170]]));
+      el(c, 46, 104, 20, 24, gv(0, 0.45));
+      el(c, 92, 100, 14, 12, 8); el(c, 122, 104, 7, 11, 15);
+      pg(c, [108, 112, 114, 128, 102, 128], 15);
+      el(c, 106, 110, 14, 6, gv(255, 0.5));
+      fr(c, 92, 132, 40, 12, 240); for (let i = 0; i < 8; i++) fr(c, 95 + i * 4.8, 132, 1.2, 12, 40);
+      pg(c, [86, 146, 132, 144, 128, 160, 98, 164, 82, 154], lin(c, 0, 144, 0, 164, [[0, 220], [1, 140]]));
+      for (let i = 0; i < 7; i++) fr(c, 96 + i * 4.8, 146, 1.2, 8, 50);
+      ln(c, [62, 64, 72, 92, 66, 120], gv(0, 0.4), 1.5);
+      c.restore();
+      const pic = dither2(lum(c), [B, W]), o = G.mkCanvas(PW, PH);
+      onto(o, (x) => {
+        G.rect(0, 0, PW, PH, K);
+        G.rect(8, 30, 144, 170, B); G.box(8, 30, 144, 170, W); G.box(10, 32, 140, 166, W);
+        G.rect(11, 33, 138, 13, W); G.text('VIRUS DETECTED', PW / 2 - 4, 36, B, { al: 'c', b: true });
+        G.line(139, 36, 145, 42, B); G.line(140, 36, 146, 42, B); G.line(145, 36, 139, 42, B); G.line(146, 36, 140, 42, B);
+        x.drawImage(pic.c, 12, 46, 136, 116, 12, 46, 136, 116);
+        G.text('×', 92, 97, W, { al: 'c', b: true });
+        G.text('ACCESS TO THE FILE', PW / 2, 166, W, { al: 'c' }); G.text('WAS DENIED', PW / 2, 175, W, { al: 'c' });
+        G.box(30, 184, 44, 12, W); G.text('RETRY', 52, 187, W, { al: 'c' }); G.box(86, 184, 44, 12, W); G.text('CANCEL', 108, 187, W, { al: 'c' });
+      });
+      return o.c;
+    },
+
     // 13) mago oficinista: BORN TO CAST
     wizard() {
       const o = G.mkCanvas(PW, PH);
