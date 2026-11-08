@@ -105,6 +105,8 @@
     sBus.gain.setTargetAtTime(s.sfx ? 2.0 : 0, ac.currentTime, 0.05);
   };
   A.now = () => (ac ? ac.currentTime : 0);
+  // acceso directo al grafo para sonidos propios de cada juego (p. ej. el módem de DIAL.UP)
+  A.raw = () => (ac ? { ac, sBus, mIn, out, noiseBuf } : null);
   A.muffle = function (on) { if (!ac) return; mFilt.frequency.setTargetAtTime(on ? 650 : 20000, ac.currentTime, 0.08); };
   A.duck = function (amt, rec) {
     if (!ac) return; const t = ac.currentTime;
@@ -403,6 +405,94 @@
       if (I > 0.5 && st % 4 === 2) metal(t, 0.12);
       if (bar % 2 === 1 && st >= 12 && mode !== 'warm') for (let k = 0; k < 2; k++) { const tt = t + k * sd * 0.5; const n = noise(tt, 0.05), g = gain(0), sh = ac.createWaveShaper(); sh.curve = crush(4); perc(g.gain, tt, 0.15, 0.05); n.connect(sh); sh.connect(g); g.connect(mIn); }
     } },
+    core: { bpm: 128, accel: 0.1, // GAME+ (CORE): techno de ordenador con pitidos; cada ronda añade una capa
+      // efectos propios (se pre-renderizan en la caché como los demás instrumentos)
+      zap(t, v, k) { // zap con bitcrush: un tono que salta de frecuencia
+        const vr = q20(v), fs = [1800, 300, 2600, 700, 3400, 450, 1200, 2200, 160];
+        const fn = (t0) => {
+          const o = osc('square', 900, t0), s = ac.createWaveShaper(), lp = bq('lowpass', 5200), g = gain(0); s.curve = crush(3);
+          for (let i = 0; i < 9; i++) o.frequency.setValueAtTime(fs[(i * (k + 2)) % 9], t0 + i * 0.012);
+          perc(g.gain, t0, vr, 0.11); o.connect(s); s.connect(lp); lp.connect(g); g.connect(mIn); o.start(t0); o.stop(t0 + 0.13);
+        };
+        if (!viaCache('cz' + vr + '_' + k, 0.16, t, v, vr, fn, 0, 0.25)) fn(t);
+      },
+      chirp(t, v, k) { // gorjeo tipo módem: tonos FSK que saltan muy rápido
+        const vr = q20(v);
+        const fn = (t0) => {
+          const o = osc('square', 1070, t0), bp = bq('bandpass', 1700, 0.8), s = ac.createWaveShaper(), g = gain(0); s.curve = crush(5);
+          let r = 17 + k * 31;
+          for (let i = 0; i < 30; i++) { r = (r * 73 + 41) % 101; const hi = i >= 14; o.frequency.setValueAtTime(r % 2 ? (hi ? 2225 : 1270) : (hi ? 2025 : 1070), t0 + i * 0.007); }
+          o.frequency.setValueAtTime(2100, t0 + 0.21);
+          g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vr, t0 + 0.005); g.gain.setValueAtTime(vr, t0 + 0.2); g.gain.linearRampToValueAtTime(vr * 0.5, t0 + 0.21); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+          o.connect(s); s.connect(bp); bp.connect(g); g.connect(mIn); o.start(t0); o.stop(t0 + 0.34);
+        };
+        if (!viaCache('cc' + vr + '_' + k, 0.36, t, v, vr, fn, 0, 0.2)) fn(t);
+      },
+      riser(t, dur, v) { // subida de ruido antes de cada bloque de 4 compases
+        const vr = q20(v), dd = qd(dur);
+        const fn = (t0) => {
+          const n = noise(t0, dd), bp = bq('bandpass', 300, 3), g = gain(0);
+          bp.frequency.setValueAtTime(300, t0); bp.frequency.exponentialRampToValueAtTime(7500, t0 + dd);
+          g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vr, t0 + dd * 0.95); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dd + 0.03);
+          n.connect(bp); bp.connect(g); g.connect(mIn);
+          const o = osc('square', 180, t0), og = gain(0), lp = bq('lowpass', 2400); o.frequency.exponentialRampToValueAtTime(1500, t0 + dd);
+          og.gain.setValueAtTime(0.0001, t0); og.gain.exponentialRampToValueAtTime(vr * 0.25, t0 + dd * 0.95); og.gain.exponentialRampToValueAtTime(0.0001, t0 + dd + 0.03);
+          o.connect(lp); lp.connect(og); og.connect(mIn); o.start(t0); o.stop(t0 + dd + 0.05);
+        };
+        if (!viaCache('cr' + vr + '_' + dd, dd + 0.08, t, v, vr, fn, 0.3)) fn(t);
+      },
+      step(s, t, I, sd) {
+        const bar = s >> 4, st = s & 15, b4 = bar % 4;
+        const sc = G.scene, deep = sc && sc.L && sc.L.p2 ? G.clamp((sc.n - 14) / 8, 0, 1) : 0;
+        I = Math.min(1, I + deep * 0.12); // cuanto más dentro de CORE, un poco más de caña
+        const prog = [[28, 'm'], [28, 'm'], [24, 'M'], [26, 'M']];
+        const [r, q] = prog[b4];
+        const boss = I > 0.82;
+        // bombo a negras (+ síncopa a partir de la ronda 5)
+        if (st % 4 === 0) kick(t, 0.95, boss ? 6 : 3);
+        if (I > 0.55 && bar % 2 === 1 && st === 14) kick(t, 0.6, 3);
+        // bajo que late entre bombos (en el jefe deja hueco al growl)
+        if (st % 4 !== 0 && (!boss || st % 2 === 1)) sbass(t, mf(r + 12 + (I > 0.28 && st % 4 === 3 ? 12 : 0)), sd * 0.6, 0.19, 150, 1400, 'square', 8, 2);
+        if (boss && st % 8 === 0) growl(t, mf(r + 12), sd * 3.6, 0.2, (128 / 60) * 4, 16);
+        // pitidos de ordenador "pensando" (la firma de CORE)
+        const HI = [88, 91, 95, 96, 100, 103];
+        const BP = ['x..x..x.x.....x.', '.x..x...xx..x...', 'x.x...x...x.xx..', '..x.x..x...x..x.'];
+        const beep = I < 0.12 ? bar % 2 === 0 && 'x.....x...x.....'[st] === 'x' : BP[(bar * 3) % 4][st] === 'x';
+        if (beep) lead(t, mf(HI[(bar * 13 + st * 7) % 6]), sd * 0.3, 0.03, 'square', 0.3, 1);
+        if (I < 0.12 && st % 2 === 1) tick(t, 0.03);
+        // ronda 2: charles y arpegio de pitidos
+        if (I > 0.12) {
+          if (st % 4 === 2) hat(t, 0.09);
+          const arp = q === 'm' ? [0, 7, 12, 15, 19, 15, 12, 7] : [0, 7, 12, 16, 19, 16, 12, 7];
+          if (st % 2 === 0 || I > 0.4) lead(t, mf(r + 36 + arp[st % 8]), sd * 0.5, 0.026, 'square', 0.25, 3);
+          if (st === 0) pad(t, chord(r + 36, q), sd * 15, 0.022, 900);
+        }
+        // ronda 3: caja, semicorcheas y redobles cada 4 compases
+        if (I > 0.28) {
+          if (st % 2 === 1) hat(t, 0.04);
+          if (st === 4 || st === 12) snare(t, 0.62, 0.6, 200);
+          else if (b4 === 3 && st >= (I > 0.55 ? 8 : 13)) snare(t, 0.18 + (st - 8) * 0.035, 0.3, 230);
+          if (b4 === 0 && st === 0) { hat(t, 0.12, true); metal(t, 0.08); }
+        }
+        // ronda 4: subidas de ruido y zaps con bitcrush
+        if (I > 0.42) {
+          if (b4 === 3 && st === 8) this.riser(t, sd * 8, 0.09);
+          if ((bar % 2 === 1 && st === 6) || (b4 === 1 && st === 14)) this.zap(t, 0.07, bar % 3);
+        }
+        // ronda 5: melodía y gorjeos de módem
+        if (I > 0.55) {
+          if (st % 8 === 6) hat(t, 0.06, true);
+          const MEL = [12, null, 15, 14, 12, null, 7, null, 10, null, 12, null, 15, 17, 15, null, 12, null, 15, null, 19, null, 15, 12, 17, null, 15, 14, 12, 14, 10, null];
+          if (st % 2 === 0) { const m = MEL[b4 * 8 + st / 2]; if (m != null) lead(t, mf(64 + m), sd * 1.7, 0.045, 'sawtooth', 0.3, 9); }
+          if (bar % 2 === 1 && st === 10) this.chirp(t, 0.05, (bar >> 1) % 4);
+        }
+        // jefe: tartamudeos de glitch al final de cada 2 compases
+        if (boss && bar % 2 === 1 && st >= 12) {
+          lead(t + sd * 0.5, mf(HI[st % 6]), sd * 0.2, 0.03, 'square', 0, 1);
+          kick(t + sd * 0.5, 0.45, 6);
+          if (st === 15) this.zap(t + sd * 0.5, 0.06, 3);
+        }
+      } },
   };
 
   // ---------- secuenciador ----------
@@ -416,7 +506,7 @@
     if (!seq.timer) seq.timer = setInterval(tickSeq, 30);
   };
   // pre-renderiza en segundo plano todos los estilos (se llama al encender)
-  A.warmAll = function () { if (!ac) return; ['ambient', 'midtempo', 'darksynth', 'industrial', 'chaos', 'serpent'].forEach((n) => warm(STYLES[n])); };
+  A.warmAll = function () { if (!ac) return; ['ambient', 'midtempo', 'darksynth', 'industrial', 'chaos', 'serpent', 'core'].forEach((n) => warm(STYLES[n])); };
   A.stopMusic = function () { seq.name = null; seq.style = null; };
   A.intensity = function (v) { seq.I = G.clamp(v, 0, 1); };
   // programa con 0,22 s de margen; si el móvil se atasca, salta los pasos atrasados en vez de soltarlos de golpe

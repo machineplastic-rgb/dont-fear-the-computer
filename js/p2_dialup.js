@@ -36,6 +36,128 @@
     if (txt) G.text(txt, x + 4, y + Math.floor((h - 7) / 2), col || K);
   }
 
+  // ---------- sonido de módem (síntesis propia, sigue lo que pasa en la partida) ----------
+  // orden: tono de línea (mientras sale CONNECT!) · un tono DTMF por cada dígito que aparece · llamada ·
+  // tono de respuesta · línea: dentro de la franja suena el "chirrido" de datos (cambia en cada fase de la
+  // conexión), fuera solo estática; el silbido sigue a la aguja. Al acabar: clic de relé, comunicando o corte.
+  // Todo va a sBus (respeta el ajuste de efectos) y se corta solo con pausa, salida o cambio de ronda.
+  const DTMF = { 1: [697, 1209], 2: [697, 1336], 3: [697, 1477], 4: [770, 1209], 5: [770, 1336], 6: [770, 1477], 7: [852, 1209], 8: [852, 1336], 9: [852, 1477], 0: [941, 1336] };
+  const T_RING = 0.78, T_ANS = 1.18, T_LINE = 1.62; // momentos de la ronda (s.t) en que cambia el sonido
+  const HOPS = [[980, 1180, 1650, 1850], [600, 1200, 1800, 2400], [1300, 1700, 2100, 2500, 2900], [1500, 1900, 2300, 2700, 3100, 3300]];
+  const M = { s: null, g: null, nodes: [], line: null, phase: '', nd: 0, stage: 0, hop: 0, ended: false, endT: 0, iv: null, dial: null };
+  function mRaw() { const a = G.audio && G.audio.raw ? G.audio.raw() : null; return a && a.ac.state === 'running' ? a : null; }
+  function mOpen() { // bus propio de la ronda
+    const a = mRaw(); if (!a) return null;
+    if (!M.g) { M.g = a.ac.createGain(); M.g.gain.value = 0.42; M.g.connect(a.sBus); }
+    return a;
+  }
+  function mNode(n) { M.nodes.push(n); return n; }
+  function mTone(a, t, f, dur, v, type, f2) {
+    const o = mNode(a.ac.createOscillator()), g = a.ac.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.setValueAtTime(v, t + Math.max(0.007, dur - 0.012)); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(M.g); o.start(t); o.stop(t + dur + 0.03);
+  }
+  function mNoise(a, t, dur, v, f, q) { // ráfaga de ruido filtrado
+    const n = mNode(a.ac.createBufferSource()), bp = a.ac.createBiquadFilter(), g = a.ac.createGain();
+    n.buffer = a.noiseBuf; n.loop = true; bp.type = 'bandpass'; bp.frequency.value = f || 1900; bp.Q.value = q || 0.7;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.01); g.gain.setValueAtTime(v, t + Math.max(0.011, dur - 0.03)); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    n.connect(bp); bp.connect(g); g.connect(M.g); n.start(t, Math.random() * 1.5); n.stop(t + dur + 0.03);
+  }
+  function mClick(a, t, v) { mTone(a, t, 2400, 0.012, v, 'square'); mTone(a, t, 140, 0.05, v * 0.9, 'sine', 60); }
+  function mStopDial(fade) { if (!M.dial) return; const a = mRaw(); try { if (a) { M.dial.g.gain.setTargetAtTime(0.0001, a.ac.currentTime, fade || 0.01); M.dial.o.forEach((o) => o.stop(a.ac.currentTime + 0.08)); } else M.dial.o.forEach((o) => o.stop()); } catch (e) { } M.dial = null; }
+  // corta todo (rápido y sin chasquido). full = además olvida la ronda y para el vigilante
+  function mStop(full) {
+    const a = mRaw(), now = a ? a.ac.currentTime : 0;
+    mStopDial();
+    if (M.g) { const g = M.g; try { g.gain.cancelScheduledValues(now); g.gain.setTargetAtTime(0.0001, now, 0.012); } catch (e) { } setTimeout(() => { try { g.disconnect(); } catch (e) { } }, 160); }
+    M.nodes.forEach((n) => { try { n.stop(now + 0.08); } catch (e) { } });
+    M.nodes = []; M.g = null; M.line = null; M.phase = '';
+    if (full) { M.s = null; M.ended = false; if (M.iv) { clearInterval(M.iv); M.iv = null; } }
+  }
+  // vigilante: el juego no avisa al pausar, salir o pasar de ronda, así que se mira su estado cada 50 ms
+  function mWatch() {
+    const sc = G.scene, s = M.s;
+    if (!s) return mStop(true);
+    if (!sc || G.sceneName !== 'game' || sc.mg !== G.MICRO.dialup || sc.ms !== s) return mStop(true);
+    if (M.ended) { if (performance.now() > M.endT) mStop(true); return; }
+    if (sc.state !== 'play') { mStop(false); return; } // pausa: al volver, update lo vuelve a montar
+    if (s.done) mEnd(s);
+  }
+  function mBegin(s) { mStop(true); M.s = s; M.nd = 0; M.stage = 0; M.ended = false; M.iv = setInterval(mWatch, 50); }
+  // tono de línea mientras sale la orden CONNECT! (350 + 440 Hz)
+  function mDialTone() {
+    const a = mOpen(); if (!a || M.dial) return;
+    const t = a.ac.currentTime + 0.02, g = a.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + 0.05); g.connect(M.g);
+    const o = [350, 440].map((f) => { const x = a.ac.createOscillator(); x.frequency.value = f; x.connect(g); x.start(t); return x; });
+    M.dial = { g, o };
+  }
+  // capas continuas de la línea: estática (filtro que sigue a la aguja), trino de datos y portadora
+  function mLine(a) {
+    const ac = a.ac, t = ac.currentTime;
+    const n = mNode(ac.createBufferSource()); n.buffer = a.noiseBuf; n.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.9;
+    const hg = ac.createGain(); hg.gain.value = 0.0001; n.connect(bp); bp.connect(hg); hg.connect(M.g); n.start(t, Math.random() * 1.5);
+    const w = mNode(ac.createOscillator()); w.type = 'square'; w.frequency.value = 1650;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+    const wg = ac.createGain(); wg.gain.value = 0.0001; w.connect(lp); lp.connect(wg); wg.connect(M.g); w.start(t);
+    const c = mNode(ac.createOscillator()); c.type = 'triangle'; c.frequency.value = 900;
+    const cg = ac.createGain(); cg.gain.value = 0.0001; c.connect(cg); cg.connect(M.g); c.start(t);
+    M.line = { bp, hg, w, wg, c, cg };
+  }
+  function mUpd(s, dt) {
+    if (M.s !== s) mBegin(s);
+    if (M.ended) return;
+    if (s.done) { mEnd(s); return; }
+    const a = mOpen(); if (!a) return;
+    mStopDial(0.015);
+    const ac = a.ac, now = ac.currentTime, t = s.t;
+    // dígitos: un tono por cada uno que aparece en el campo PHONE
+    const nd = Math.min(PHONE.length, Math.floor(t / 0.09));
+    while (M.nd < nd) { const ch = PHONE[M.nd++], k = DTMF[ch]; if (k) { mTone(a, now + 0.005, k[0], 0.07, 0.07); mTone(a, now + 0.005, k[1], 0.07, 0.06); } }
+    const ph = t < T_RING ? 'dial' : t < T_ANS ? 'ring' : t < T_LINE ? 'ans' : 'line';
+    if (ph !== M.phase) {
+      M.phase = ph;
+      if (ph === 'ring') { const d = T_ANS - t - 0.04; if (d > 0.05) { mTone(a, now, 440, d, 0.05); mTone(a, now, 480, d, 0.05); } }
+      if (ph === 'ans') { // tono de respuesta con sus inversiones de fase (pequeños cortes)
+        const d = T_LINE - t; if (d > 0.05) { mTone(a, now, 2100, d, 0.045); for (let k = 0.15; k < d - 0.05; k += 0.18) mTone(a, now + k, 2100, 0.012, 0.03, 'square'); }
+      }
+      if (ph === 'line' && !M.line) { mLine(a); mNoise(a, now, 0.12, 0.05, 1900); }
+    }
+    if (!M.line) return;
+    // la línea según la partida
+    const Ln = M.line, inb = s.inb, hold = s.hold.size > 0, nk = s.noise / s.noiseMax;
+    const stage = s.p < 0.25 ? 0 : s.p < 0.5 ? 1 : s.p < 0.75 ? 2 : 3;
+    if (inb && stage > M.stage) { // nueva fase de la conexión: "ding-dong" de sondeo + soplido
+      mTone(a, now, 1200, 0.11, 0.045); mTone(a, now + 0.11, 2400, 0.11, 0.035); mNoise(a, now + 0.2, 0.14, 0.05, 2200, 0.5);
+    }
+    if (inb) M.stage = Math.max(M.stage, stage);
+    const stat = s.static > 0 ? 0.03 : 0;
+    Ln.bp.frequency.setTargetAtTime(700 + s.u * 2300, now, 0.03);
+    Ln.hg.gain.setTargetAtTime(inb ? 0.012 + 0.012 * stage + stat : 0.03 + 0.045 * nk + stat + (Math.random() < 0.08 ? 0.04 : 0), now, 0.02);
+    M.hop -= dt;
+    if (M.hop <= 0) { // el trino salta de frecuencia (más rápido y más agudo cuanto más avanzada la conexión)
+      M.hop = (stage >= 2 ? 0.012 : 0.03) + Math.random() * 0.025;
+      const set = HOPS[stage]; Ln.w.frequency.setValueAtTime(set[Math.floor(Math.random() * set.length)] * (stage >= 2 ? 0.9 + Math.random() * 0.2 : 1), now);
+    }
+    Ln.wg.gain.setTargetAtTime(inb ? 0.016 + 0.004 * stage : 0.0001, now, 0.015);
+    Ln.c.frequency.setTargetAtTime(500 + s.u * 1500 + (inb ? 0 : Math.sin(t * 40) * 30), now, 0.025);
+    Ln.cg.gain.setTargetAtTime(hold ? 0.022 : 0.011, now, 0.03);
+  }
+  // final de la ronda: conectado (clic y silencio), comunicando o corte de portadora
+  function mEnd(s) {
+    if (M.ended) return; M.ended = true;
+    const a = mRaw(); M.endT = performance.now() + 900;
+    if (!a || !M.g) return;
+    const now = a.ac.currentTime;
+    mStopDial();
+    if (M.line) { const Ln = M.line; [Ln.hg, Ln.wg, Ln.cg].forEach((g) => g.gain.setTargetAtTime(0.0001, now, 0.02)); }
+    if (s.done === 'win') { mNoise(a, now, 0.1, 0.06, 2600, 0.5); mClick(a, now + 0.11, 0.08); }
+    else if (s.reason === 'LINE BUSY') { [0, 0.34].forEach((k) => { mTone(a, now + 0.06 + k, 480, 0.2, 0.05); mTone(a, now + 0.06 + k, 620, 0.2, 0.045); }); }
+    else { mClick(a, now, 0.08); mTone(a, now, 1800, 0.3, 0.035, 'sawtooth', 180); mNoise(a, now, 0.2, 0.05, 900, 0.8); }
+  }
+
   G.MICRO.dialup = {
     mode: 'float', tilt: 3, cmd: 'CONNECT!', hint: 'HOLD TO RAISE THE SIGNAL', time: 6, fx: 0.4,
     help: ['HOLD: SIGNAL GOES UP.', 'LET GO: IT FALLS.', 'KEEP IT IN THE BAND', 'UNTIL YOU CONNECT.'],
@@ -71,8 +193,10 @@
       s.sc = { x: r.x + 9, y: scY, w: r.w - 18, h: scH };
       s.lay.conn = scY + scH + 6; s.lay.noise = s.lay.conn + 24; s.lay.box = s.lay.noise + 18; s.lay.btn = s.lay.box + 48;
       s.c = center(s);
+      mBegin(s); mDialTone(); // tono de línea mientras sale CONNECT!
     },
-    update(s, dt) {
+    update(s, dt) { this.play(s, dt); mUpd(s, dt); },
+    play(s, dt) {
       // si el juego estuvo en pausa, el dedo puede haberse levantado sin que llegara el aviso
       const now = performance.now(); if (s.last && now - s.last > 250) s.hold.clear(); s.last = now;
       const d = s.d;

@@ -22,7 +22,7 @@
     this.time = this.cfg.time; this.closed = 0; this.score = 0; this.combo = 0; this.lastClose = -9; this.maxCombo = 0;
     this.spawnT = 0.4; this.lastBeep = 99; this.startDown = 0; this.pauseSel = -1;
     this.boss = null;
-    A().music(G.MUSIC_BY_BLOCK[this.block]); A().intensity(0); A().muffle(false);
+    A().music(this.L.p2 ? 'core' : G.MUSIC_BY_BLOCK[this.block]); A().intensity(0); A().muffle(false);
     this.applyFx(0);
     if (this.cfg.mode === 'serpent') this.initSnake();
     else this.intro = this.makeIntro();

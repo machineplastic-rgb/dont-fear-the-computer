@@ -31,10 +31,12 @@
     { n: 16, name: 'POP.BREAKER', mode: 'micro', game: 'popbreaker', block: 2, rounds: 6, p2: true },
     { n: 17, name: 'TASK.MGR', mode: 'micro', game: 'taskmgr', block: 1, rounds: 6, p2: true },
     { n: 18, name: 'CASCADE', mode: 'micro', game: 'cascade', block: 2, rounds: 6, p2: true },
-    { n: 19, name: 'SHRED.EXE', mode: 'micro', game: 'shred', block: 3, rounds: 6, p2: true },
+    { n: 19, name: 'DISK.PART', mode: 'micro', game: 'partition', block: 3, rounds: 6, p2: true },
     { n: 20, name: 'DIAL.UP', mode: 'micro', game: 'dialup', block: 1, rounds: 6, p2: true },
+    { n: 21, name: 'RUN.EXE', mode: 'micro', game: 'run', block: 2, rounds: 6, p2: true },
+    { n: 22, name: 'KEEP.ALIVE', mode: 'micro', game: 'keepalive', block: 3, rounds: 6, p2: true },
   ];
-  G.P2_FIRST = 14; G.P2_LAST = 20;
+  G.P2_FIRST = 14; G.P2_LAST = 22;
 
   // textos temáticos (cada sector = lo que dibuja su tarjeta)
   G.THEMES = {

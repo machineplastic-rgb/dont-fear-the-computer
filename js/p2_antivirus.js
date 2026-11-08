@@ -112,11 +112,204 @@
     const p = s.pl, ty = p.y + 10, tx = p.x + 4 + (lead ? s.pvx * Math.hypot(p.x - x, ty - y) / spd * lead : 0), a = Math.atan2(ty - y, tx - x) + (spread || 0);
     return { vx: Math.cos(a) * spd, vy: Math.max(spd * 0.45, Math.sin(a) * spd) };
   }
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+  // pieza de la formación (el aspecto se elige después con setLook); las 'mini' son las AGAIN del jefe
   function mkEnemy(s, kind, o) {
-    const pl = pool(s), st = G.WSTYLES[kind === 'armor' ? pl.armor : kind === 'shoot' ? pl.shoot : G.pick(pl.basic)];
-    const title = kind === 'shoot' ? 'VIRUS' : kind === 'armor' ? 'WARN!' : kind === 'mini' ? 'AGAIN' : G.pick(TITLES);
-    return Object.assign({ w: VW, h: VH, kind, st, title, hp: 1, max: 1, flash: 0, tele: 0, ft: 0, crack: G.rand(0, 6) }, o);
+    const e = Object.assign({ w: VW, h: VH, kind: 'basic', look: null, hp: 1, max: 1, flash: 0, tele: 0, ft: 0, crack: G.rand(0, 6), span: 1, ox: 0, oy: 0, seed: Math.random() * 10 }, o);
+    if (kind === 'mini') { e.kind = 'mini'; e.look = 'err'; e.st = G.WSTYLES[G.pick(pool(s).basic)]; e.title = 'AGAIN'; }
+    return e;
   }
+
+  // ---------- ventanitas variadas (como un collage de pop-ups 1 bit y azul) ----------
+  const WORDS = ['STAY', 'WAIT', 'NOPE', 'LOL', 'HELP', 'LOST', 'BYE', 'BUSY', 'RUN', 'NO'];
+  const SCRIPT = ['Static', 'Lost', 'Glitch', 'Ghost', 'Hello', 'Sorry'];
+  const MSGS = ['NO SMILE', 'NOT FOUND', 'BAD SECTOR', 'NO SIGNAL', 'TRY AGAIN', 'LOW MEMORY'];
+  const USERS = ['GUEST', 'ADMIN', 'ROOT', 'USER01'];
+  const FILES = ['FILE.EXE', 'PHOTOS.ZIP', 'MUSIC.MP3', 'DIARY.TXT'];
+  const SCRIPT_FONT = (fs) => 'italic bold ' + fs + 'px Georgia, "Times New Roman", serif';
+  // tamaño de cada tipo (las grandes ocupan dos columnas y aguantan más)
+  const SIZE = { err: [VW, VH], warn: [VW, VH], virus: [VW, VH], hg: [24, 34], smile: [36, 36], mine: [46, 40], load: [50, 30], paint: [26, 58], retry: [98, 42], login: [104, 50], copy: [104, 54], skull: [104, 58] };
+  // estilo por bloque de color: en el bloque 0 no hay azul
+  function ST(s, k) {
+    if (s.block >= 2 && Math.random() < 0.3) return G.WSTYLES[G.pick(pool(s).basic)];
+    k = Array.isArray(k) ? G.pick(k) : k;
+    if (s.block === 0 && k[0] !== 'm') k = { b1: 'm4', b2: 'm1', b3: 'm2', b4: 'm3' }[k] || 'm1';
+    return G.WSTYLES[k];
+  }
+  function setLook(s, e, look) {
+    const d = s.d, pl = pool(s), hard = d >= 0.4;
+    let [w, h] = SIZE[look] || [VW, VH], kind = 'basic', hp = 1, st, title = '';
+    e.look = look; e.blk = s.block;
+    switch (look) {
+      case 'err': st = ST(s, pl.basic); title = G.pick(TITLES); break;
+      case 'warn': kind = 'armor'; st = G.WSTYLES[pl.armor]; title = 'WARN!'; hp = hard ? 3 : 2; break;
+      case 'stack': kind = 'armor'; hp = hard ? 3 : 2; w = VW + (hp - 1) * 4; h = VH + (hp - 1) * 4; e.lst = Array.from({ length: hp }, () => ST(s, pl.basic)); st = e.lst[hp - 1]; title = 'ERROR'; break;
+      case 'virus': kind = 'shoot'; st = G.WSTYLES[pl.shoot]; title = 'VIRUS'; hp = d >= 0.3 ? 2 : 1; break;
+      case 'hg': st = ST(s, ['m1', 'm3', 'b2', 'b4']); break;
+      case 'smile': st = ST(s, ['b1', 'm2', 'm1', 'b3']); break;
+      case 'mine': st = ST(s, ['m5', 'm5', 'b4']); title = 'MINES'; e.cells = Array.from({ length: 14 }, () => G.pick([0, 0, 0, 1, 1, 2, 3])); break;
+      case 'load': st = ST(s, ['b3', 'b1']); break;
+      case 'banner': st = ST(s, ['m1', 'm2', 'b1', 'b3', 'm4']); e.word = G.pick(WORDS); w = G.textW(e.word, 2) + 8; h = 24; break;
+      case 'script': {
+        st = ST(s, ['m1', 'b2', 'm3']); e.word = G.pick(SCRIPT);
+        let fs = 15; while (fs > 10 && G.fsprite(e.word, SCRIPT_FONT(fs), '#ffffff').width > 44) fs--;
+        e.font = SCRIPT_FONT(fs); const sp = G.fsprite(e.word, e.font, '#ffffff'); w = sp.width + 8; h = Math.max(18, sp.height + 4); break;
+      }
+      case 'paint': st = ST(s, ['m1', 'b4', 'm3']); hp = d >= 0.3 ? 2 : 1; break;
+      case 'retry': kind = 'armor'; st = ST(s, ['b1', 'b2']); title = 'ERROR'; e.msg = G.pick(MSGS); hp = hard ? 3 : 2; break;
+      case 'login': kind = 'armor'; st = ST(s, ['m2', 'm4']); title = 'LOGIN'; e.user = G.pick(USERS); hp = hard ? 4 : 3; break;
+      case 'copy': kind = 'armor'; st = ST(s, ['b2', 'b4']); title = 'COPYING...'; e.file = G.pick(FILES); hp = hard ? 4 : 3; break;
+      case 'skull': kind = 'shoot'; st = ST(s, 'b1'); title = 'VIRUS DETECTED'; hp = hard ? 4 : 3; break;
+    }
+    if (e.span === 2) w = Math.min(w, Math.floor(s.colSp + VW));
+    Object.assign(e, { kind, w, h, hp, max: hp, st, title });
+    if (kind === 'shoot') e.ft = G.rand(0.8, 1.6);
+  }
+
+  // calavera en trama (blanca sobre azul): se pinta en grises y se pasa a 1 bit con Bayer
+  const skCache = new Map();
+  function skullMask(w, h) {
+    const k = w + 'x' + h; let m = skCache.get(k); if (m) return m;
+    const o = G.mkCanvas(w, h), x = o.x;
+    x.save(); x.scale(w / 34, h / 40);
+    const lg = x.createRadialGradient(11, 10, 1, 15, 17, 27); lg.addColorStop(0, '#fff'); lg.addColorStop(0.5, '#b4b4b4'); lg.addColorStop(1, '#262626');
+    x.fillStyle = lg;
+    x.beginPath(); x.ellipse(17, 15, 15, 14, 0, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.moveTo(3, 15); x.lineTo(31, 15); x.lineTo(29, 27); x.lineTo(25, 30); x.lineTo(25, 38); x.lineTo(9, 38); x.lineTo(9, 30); x.lineTo(5, 27); x.closePath(); x.fill();
+    x.fillStyle = 'rgba(0,0,0,0.5)'; x.beginPath(); x.ellipse(30, 24, 4, 8, 0, 0, Math.PI * 2); x.fill(); // sombra en la mejilla
+    x.fillStyle = '#000'; // cuencas, nariz y dientes
+    x.beginPath(); x.ellipse(11, 20, 5, 4.6, 0.2, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.ellipse(23, 20, 5, 4.6, -0.2, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.moveTo(17, 24); x.lineTo(14.4, 29.5); x.lineTo(19.6, 29.5); x.closePath(); x.fill();
+    x.fillStyle = '#e0e0e0'; x.fillRect(10, 31, 14, 6);
+    x.fillStyle = '#000'; x.fillRect(10, 33.6, 14, 1); for (let i = 0; i < 5; i++) x.fillRect(12.2 + i * 2.6, 31, 1, 6);
+    x.restore();
+    const d = x.getImageData(0, 0, w, h).data; m = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 140) m[i] = d[i * 4] / 255 > (G.bayer(i % w, Math.floor(i / w)) + 0.5) / 16 ? 1 : 0;
+    skCache.set(k, m); return m;
+  }
+  function skullArt(w, h, col) {
+    const k = w + 'x' + h + col; let c = skCache.get(k); if (c) return c;
+    const m = skullMask(w, h), o = G.mkCanvas(w, h), id = o.x.createImageData(w, h), rgb = G.hexRGB(col);
+    for (let i = 0; i < w * h; i++) if (m[i]) { id.data[i * 4] = rgb[0]; id.data[i * 4 + 1] = rgb[1]; id.data[i * 4 + 2] = rgb[2]; id.data[i * 4 + 3] = 255; }
+    o.x.putImageData(id, 0, 0); skCache.set(k, o.c); return o.c;
+  }
+
+  // ---------- dibujo de cada tipo ----------
+  function shadow(x, y, w, h, st) { G.drect(x + 3, y + 3, w, h, 8, st.sh, null); if (st.out) G.box(x - 1, y - 1, w + 2, h + 2, st.out); }
+  function okBtn(rr, st) { const bx = rr.x + rr.w - 21, byy = rr.y + 3; G.rect(bx, byy, 18, 9, st.bd); G.box(bx, byy, 18, 9, st.tx); G.text('OK', bx + 9, byy + 1, st.tx, { al: 'c' }); }
+  function btn(x, y, w, h, lbl, st, on) {
+    G.rect(x, y, w, h, on ? st.tx : st.bd); G.box(x, y, w, h, st.tx);
+    G.text(lbl, x + w / 2, y + Math.floor((h - 7) / 2), on ? st.bd : st.tx, { al: 'c' });
+  }
+  function bar(x, y, w, h, k, col, seg) {
+    G.box(x, y, w, h, col);
+    const n = Math.floor((w - 3) / (seg + 1)), f = Math.round(n * G.clamp(k, 0, 1));
+    for (let i = 0; i < f; i++) G.rect(x + 2 + i * (seg + 1), y + 2, seg, h - 4, col);
+  }
+  const frame = (x, y, e, st, title, stripes) => G.drawFrame({ x, y, w: e.w, h: e.h, st, title: title == null ? e.title : title, stripes: !!stripes, xmode: 'x' });
+  function ants(x, y, w, h) { // selección con hormiguitas (blanco y negro que avanzan)
+    const T = G.ctx(), ph = Math.floor(G.time * 10); let i = 0;
+    const P = (px, py) => { T.fillStyle = ((i++ + ph) >> 1) & 1 ? W : K; T.fillRect(px, py, 1, 1); };
+    for (let k = 0; k < w; k++) P(x + k, y);
+    for (let k = 1; k < h; k++) P(x + w - 1, y + k);
+    for (let k = w - 2; k >= 0; k--) P(x + k, y + h - 1);
+    for (let k = h - 2; k > 0; k--) P(x, y + k);
+  }
+  const TOOLS = [ // paleta de dibujo: 8 herramientas propias de 8x8
+    (x, y, c) => { G.line(x + 2, y + 7, x + 7, y + 2, c); G.px(x + 3, y + 7, c); }, // lápiz
+    (x, y, c) => G.box(x + 2, y + 3, 6, 4, c), // rectángulo
+    (x, y, c) => G.line(x + 2, y + 2, x + 7, y + 7, c), // línea
+    (x, y, c) => G.ell(x + 5, y + 5, 3, 2, null, c), // elipse
+    (x, y, c) => G.text('A', x + 3, y + 2, c), // texto
+    (x, y, c) => { G.rect(x + 3, y + 4, 4, 4, c); G.line(x + 2, y + 3, x + 5, y + 1, c); G.px(x + 8, y + 7, c); }, // cubo
+    (x, y, c) => { G.box(x + 2, y + 4, 6, 3, c); G.rect(x + 2, y + 4, 3, 3, c); }, // goma
+    (x, y, c) => { G.circ(x + 4, y + 4, 2, null, c); G.line(x + 6, y + 6, x + 8, y + 8, c); }, // lupa
+  ];
+  const DRAW = {
+    err(x, y, e, st) { const rr = frame(x, y, e, st); G.drawSpr('xcirc', rr.x + 3, rr.y + 3, { '#': st.ac }); okBtn(rr, st); },
+    warn(x, y, e, st) { const rr = frame(x, y, e, st); G.box(rr.x + 1, rr.y + 1, rr.w - 2, rr.h - 2, st.tx); G.drawSpr('warn', rr.x + 3, rr.y + 3, { '#': st.ac }); okBtn(rr, st); },
+    virus(x, y, e, st) { const rr = frame(x, y, e, st); G.drawSpr(Math.floor(G.time * 6) % 2 ? 'bug' : 'bug2', rr.x + 2, rr.y + 2, { '#': st.tx, g: st.bd }, 1); okBtn(rr, st); },
+    stack(x, y, e, st) { // montón de ERROR en cascada: cada golpe cierra la de delante
+      const n = Math.max(1, e.hp);
+      for (let j = 0; j < n; j++) {
+        const s2 = j === n - 1 ? st : e.lst[j];
+        const rr = G.drawFrame({ x: x + j * 4, y: y + j * 4, w: VW, h: VH, st: s2, title: 'ERROR', stripes: false, xmode: 'x' });
+        if (j === n - 1) { G.drawSpr('xcirc', rr.x + 3, rr.y + 3, { '#': s2.ac }); okBtn(rr, s2); }
+      }
+    },
+    hg(x, y, e, st) { // reloj de arena: la arena cae y se da la vuelta
+      const rr = frame(x, y, e, st, '', false), cx = rr.x + 10, y0 = rr.y + 1, y1 = rr.y + rr.h - 2;
+      const k = (G.time * 0.55 + e.seed) % 1, flip = k > 0.9, mid = Math.round((y0 + y1) / 2) + 1;
+      G.rect(cx - 6, y0, 13, 2, st.tx); G.rect(cx - 6, y1, 13, 2, st.tx);
+      G.line(cx - 5, y0 + 2, cx, mid - 1, st.tx); G.line(cx + 5, y0 + 2, cx, mid - 1, st.tx);
+      G.line(cx, mid, cx - 5, y1 - 1, st.tx); G.line(cx, mid, cx + 5, y1 - 1, st.tx);
+      const top = flip ? 0 : 1 - k, bot = flip ? 1 : k, hT = mid - 1 - (y0 + 3), hB = y1 - 1 - (mid + 1);
+      for (let yy = 0; yy < hT; yy++) { const fy = y0 + 3 + yy, rel = (yy + 1) / hT; if (rel > 1 - top * 0.9 || (yy === hT - 1 && top > 0.05)) { const hw = Math.max(0, Math.round(3.5 * (1 - yy / hT))); G.drect(cx - hw, fy, hw * 2 + 1, 1, 10, st.tx, null); } }
+      for (let yy = 0; yy < hB; yy++) { const fy = y1 - 2 - yy, rel = (yy + 1) / hB; if (rel <= bot * 0.9 + 0.05) { const hw = Math.max(0, Math.round(3.5 * (1 - yy / hB))); G.drect(cx - hw, fy, hw * 2 + 1, 1, 10, st.tx, null); } }
+      if (!flip && k < 0.88 && Math.floor(G.time * 12) % 2) G.rect(cx, mid, 1, hB, st.tx); // el hilito que cae
+    },
+    smile(x, y, e, st) { // carita seleccionada con sus tiradores, como en un programa de dibujo
+      const cx = x + 18, cy = y + 18 + (Math.floor(G.time * 3 + e.seed) % 2);
+      G.circ(cx, cy, 16, st.out === W ? K : W); G.circ(cx, cy, 15, st.bd);
+      G.drawSpr('smiley', cx - 15, cy - 15, { '#': st.tx, o: st.tx }, 2);
+      ants(x, y, e.w, e.h);
+      for (const hx of [0, 16, 32]) for (const hy of [0, 16, 32]) if (hx !== 16 || hy !== 16) { G.rect(x + hx, y + hy, 4, 4, W); G.box(x + hx, y + hy, 4, 4, K); }
+    },
+    mine(x, y, e, st) { // buscaminas en miniatura
+      const rr = frame(x, y, e, st), flag = e.blk === 0 ? K : B;
+      G.rect(rr.x + 1, rr.y + 1, 13, 9, K); G.text(G.pad(e.cells.filter((c) => c === 2).length + 5, 2), rr.x + 2, rr.y + 2, W);
+      G.rect(rr.x + rr.w - 14, rr.y + 1, 13, 9, K); G.text(G.pad(Math.floor(G.time + e.seed * 9) % 100, 2), rr.x + rr.w - 13, rr.y + 2, W);
+      const fx = rr.x + Math.floor(rr.w / 2) - 5, fy = rr.y + 1;
+      G.rect(fx, fy, 10, 9, W); G.box(fx, fy, 10, 9, K); G.px(fx + 3, fy + 3, K); G.px(fx + 6, fy + 3, K); G.rect(fx + 3, fy + 6, 4, 1, K); G.px(fx + 2, fy + 5, K); G.px(fx + 7, fy + 5, K);
+      const gx = rr.x + Math.floor((rr.w - 43) / 2), gy = rr.y + 12;
+      G.rect(gx, gy, 43, 13, K); // rejilla: casillas levantadas, destapadas, banderas y minas
+      e.cells.forEach((c, i) => {
+        const cx = gx + 1 + (i % 7) * 6, cy = gy + 1 + Math.floor(i / 7) * 6;
+        if (c === 0 || c === 2) { G.rect(cx, cy, 5, 5, L); G.rect(cx, cy, 5, 1, W); G.rect(cx, cy, 1, 5, W); if (c === 2) { G.rect(cx + 2, cy + 1, 2, 2, flag); G.px(cx + 2, cy + 3, K); } }
+        else { G.rect(cx, cy, 5, 5, W); if (c === 3) { G.rect(cx + 1, cy + 2, 3, 1, K); G.rect(cx + 2, cy + 1, 1, 3, K); } }
+      });
+    },
+    load(x, y, e, st) { const rr = frame(x, y, e, st, '', true); G.text('LOADING', rr.x + 2, rr.y + 1, st.tx); bar(rr.x + 1, rr.y + 9, rr.w - 2, 6, ((G.time * 0.45 + e.seed) % 1.25), st.tx, 2); },
+    banner(x, y, e, st) { shadow(x, y, e.w, e.h, st); G.rect(x, y, e.w, e.h, st.fr); G.rect(x + 2, y + 2, e.w - 4, e.h - 4, st.bd); G.text(e.word, x + e.w / 2, y + 5, st.tx, { al: 'c', s: 2 }); },
+    script(x, y, e, st) {
+      shadow(x, y, e.w, e.h, st); G.rect(x, y, e.w, e.h, st.fr); G.rect(x + 1, y + 1, e.w - 2, e.h - 2, st.bd);
+      const sp = G.fsprite(e.word, e.font, st.tx); G.ctx().drawImage(sp, Math.round(x + (e.w - sp.width) / 2), Math.round(y + (e.h - sp.height) / 2));
+    },
+    paint(x, y, e, st) { // paleta de herramientas en vertical
+      const rr = frame(x, y, e, st, '', false), sel = Math.floor(G.time * 1.5 + e.seed) % 8;
+      for (let i = 0; i < 8; i++) {
+        const cx = rr.x + (i % 2) * 12, cy = rr.y + Math.floor(i / 2) * 11, on = i === sel;
+        G.rect(cx, cy, 10, 10, on ? st.tx : st.bd); G.box(cx, cy, 10, 10, st.tx); TOOLS[i](cx, cy, on ? st.bd : st.tx);
+      }
+    },
+    retry(x, y, e, st) {
+      const rr = frame(x, y, e, st, null, true);
+      G.drawSpr('xcirc', rr.x + 4, rr.y + 3, { '#': st.ac }); G.text(e.msg, rr.x + 18, rr.y + 4, st.tx, { b: true });
+      const bw1 = 38, bw2 = 44, bx = rr.x + Math.round((rr.w - bw1 - bw2 - 6) / 2), by = rr.y + rr.h - 12;
+      btn(bx, by, bw1, 11, 'RETRY', st, Math.floor(G.time * 2 + e.seed) % 4 === 0); btn(bx + bw1 + 6, by, bw2, 11, 'CANCEL', st);
+    },
+    login(x, y, e, st) {
+      const rr = frame(x, y, e, st, null, true), n = Math.min(6, Math.floor((G.time * 3 + e.seed * 3) % 9)), fw = rr.w - 54;
+      G.text('USER', rr.x + 3, rr.y + 3, st.tx); G.box(rr.x + 52, rr.y + 1, fw, 10, st.tx); G.text(e.user, rr.x + 54, rr.y + 3, st.tx);
+      G.text('PASSWORD', rr.x + 3, rr.y + 15, st.tx); G.box(rr.x + 52, rr.y + 13, fw, 10, st.tx); G.text('*'.repeat(n), rr.x + 54, rr.y + 15, st.tx);
+      if (Math.floor(G.time * 3) % 2) G.rect(rr.x + 54 + n * 6, rr.y + 15, 1, 7, st.tx);
+      btn(rr.x + rr.w - 78, rr.y + rr.h - 11, 30, 10, 'OK', st); btn(rr.x + rr.w - 44, rr.y + rr.h - 11, 42, 10, 'CANCEL', st);
+    },
+    copy(x, y, e, st) {
+      const rr = frame(x, y, e, st, null, true), k = (G.time * 0.12 + e.seed) % 1;
+      G.text(e.file, rr.x + 3, rr.y + 2, st.tx, { b: true }); G.text('"C:/" TO "DOCS"', rr.x + 3, rr.y + 11, st.tx);
+      bar(rr.x + 3, rr.y + 20, rr.w - 6, 8, k, st.tx, 3);
+      G.text('ETA ' + (3 - Math.floor(k * 3)) + ':' + G.pad(59 - Math.floor((G.time * 7) % 60), 2), rr.x + 3, rr.y + 31, st.tx);
+      btn(rr.x + rr.w - 44, rr.y + 29, 42, 10, 'CANCEL', st);
+    },
+    skull(x, y, e, st) { // VIRUS DETECTED con calavera en trama
+      const rr = frame(x, y, e, st, null, false);
+      G.ctx().drawImage(skullArt(34, 40, st.tx), rr.x + 2, rr.y + 1);
+      G.text('YOUR FILES', rr.x + 40, rr.y + 3, st.tx); G.text('BELONG TO', rr.x + 40, rr.y + 12, st.tx); G.text('ME NOW', rr.x + 40, rr.y + 21, st.tx, { b: true });
+      btn(rr.x + 40, rr.y + rr.h - 12, 38, 11, 'RETRY', st, Math.floor(G.time * 2 + e.seed) % 3 === 0);
+    },
+  };
 
   G.MICRO.antivirus = {
     mode: 'desk', cmd: 'PURGE!', hint: 'DRAG TO MOVE - CLOSE THE POP-UPS', time: 10, fx: 0.5,
@@ -133,31 +326,57 @@
       const plan = [{ type: 'grid', n: C }];
       plan.push(d < 0.1 ? { type: 'grid', n: 2 } : { type: 'slide', n: d < 0.25 ? 2 : 3 });
       if (d >= 0.4) plan.push(d >= 0.55 ? { type: 'slide', n: 2 } : { type: 'grid', n: C - 1 });
-      s.rows = plan.map((p, i) => {
-        const row = { type: p.type, i };
-        if (p.type === 'slide') { // fila que patina de lado a lado (hay que seguirla)
-          row.span = (p.n - 1) * (VW + SLIDE_GAP) + VW;
-          row.x = G.rand(r.x + 4, r.x + r.w - 4 - row.span); row.v = (40 + 75 * d) * (i % 2 ? -1 : 1) * G.rand(0.85, 1.15);
-          for (let k = 0; k < p.n; k++) s.ens.push(mkEnemy(s, 'basic', { row: i, slot: k }));
-        } else {
-          const cols = Array.from({ length: C }, (_, k) => k).sort(() => Math.random() - 0.5).slice(0, p.n).sort((a, b) => a - b);
-          for (const k of cols) s.ens.push(mkEnemy(s, 'basic', { row: i, slot: k }));
+      s.rows = plan.map((p, i) => ({ type: p.type, i, h: VH, y: 0 }));
+      plan.forEach((p, i) => {
+        if (p.type === 'slide') { for (let k = 0; k < p.n; k++) s.ens.push(mkEnemy(s, 'basic', { row: i, slot: k })); return; } // fila que patina de lado a lado
+        const cols = shuffle(Array.from({ length: C }, (_, k) => k)).slice(0, p.n).sort((a, b) => a - b);
+        // dos columnas seguidas pueden juntarse en una ventana grande (aguanta más golpes)
+        let merges = i === 0 ? (d >= 0.14 ? (d >= 0.55 && C >= 4 ? 2 : 1) : 0) : (d >= 0.4 && Math.random() < 0.4 ? 1 : 0);
+        const used = new Set();
+        for (const j of shuffle(cols.map((_, j) => j))) {
+          if (merges <= 0) break;
+          const a = cols[j], b = cols[j + 1];
+          if (b === a + 1 && !used.has(a) && !used.has(b)) { used.add(a); used.add(b); s.ens.push(mkEnemy(s, 'basic', { row: i, slot: a, span: 2 })); merges--; }
         }
-        return row;
+        for (const c of cols) if (!used.has(c)) s.ens.push(mkEnemy(s, 'basic', { row: i, slot: c }));
       });
-      // blindadas (aguantan 2-3) arriba, tiradoras repartidas
-      const armors = d >= 0.14 ? 1 + Math.floor(d * 3) : 0, shooters = d >= 0.14 ? 1 + Math.round(d * 3) : 0;
-      const grid = s.ens.filter((e) => s.rows[e.row].type === 'grid').sort(() => Math.random() - 0.5);
-      grid.slice(0, armors).forEach((e) => { const o = mkEnemy(s, 'armor', { row: e.row, slot: e.slot }); Object.assign(e, o); e.hp = e.max = d >= 0.4 ? 3 : 2; });
-      const rest = s.ens.filter((e) => e.kind === 'basic').sort((a, b) => a.row - b.row || Math.random() - 0.5); // las que disparan, detrás (en las filas de arriba)
-      rest.slice(0, shooters).forEach((e) => { Object.assign(e, mkEnemy(s, 'shoot', { row: e.row, slot: e.slot })); e.hp = e.max = d >= 0.3 ? 2 : 1; e.ft = G.rand(0.8, 1.6); });
+      // grandes: LOGIN, COPYING, ERROR con RETRY o la calavera VIRUS DETECTED (esta dispara)
+      let armors = d >= 0.14 ? 1 + Math.floor(d * 3) : 0, shooters = d >= 0.14 ? 1 + Math.round(d * 3) : 0;
+      const bigBag = shuffle(['login', 'copy', 'retry']); if (Math.random() < 0.5) bigBag.push('skull'); else bigBag.unshift('skull');
+      s.ens.filter((e) => e.span === 2).sort((a, b) => a.row - b.row).forEach((e) => {
+        let look = bigBag.pop() || G.pick(['login', 'copy', 'retry']);
+        if (look === 'skull' && shooters <= 0) look = 'copy';
+        setLook(s, e, look); if (e.kind === 'shoot') shooters--; else armors--;
+      });
+      // blindadas (montón de ERROR o aviso) y tiradoras (VIRUS) entre las pequeñas; las que disparan, en las filas de arriba
+      const free = () => s.ens.filter((e) => !e.look);
+      shuffle(free().filter((e) => s.rows[e.row].type === 'grid')).slice(0, Math.max(0, armors)).forEach((e) => setLook(s, e, Math.random() < 0.5 ? 'stack' : 'warn'));
+      free().sort((a, b) => a.row - b.row || Math.random() - 0.5).slice(0, Math.max(0, shooters)).forEach((e) => setLook(s, e, 'virus'));
+      // el resto, todas distintas (la paleta alta y el buscaminas, como mucho una vez)
+      const bag = shuffle(['err', 'hg', 'smile', 'mine', 'load', 'banner', 'script', 'paint', 'banner', 'err', 'smile', 'load']);
+      free().forEach((e) => { if (!bag.length) bag.push(...shuffle(['err', 'hg', 'smile', 'load', 'banner', 'script'])); setLook(s, e, bag.pop()); });
+      // alto de cada fila (manda la más alta) y sitio de cada ventana dentro de su hueco
+      let yy = 0;
+      s.rows.forEach((row, i) => {
+        let es = s.ens.filter((e) => e.row === i);
+        if (row.type === 'slide') {
+          es.sort((a, b) => a.slot - b.slot);
+          const span = () => es.reduce((a, e) => a + e.w, 0) + (es.length - 1) * SLIDE_GAP;
+          while (es.length > 1 && span() > r.w - 8) { const x = es.pop(); s.ens.splice(s.ens.indexOf(x), 1); }
+          let x = 0; es.forEach((e) => { e.ox = x; x += e.w + SLIDE_GAP; });
+          row.span = span(); row.x = G.rand(r.x + 4, Math.max(r.x + 4, r.x + r.w - 4 - row.span)); row.v = (40 + 75 * d) * (i % 2 ? -1 : 1) * G.rand(0.85, 1.15);
+        } else es.forEach((e) => { const cw = e.span === 2 ? s.colSp + VW : VW; e.ox = Math.round(G.clamp(4 + e.slot * s.colSp + (cw - e.w) / 2, 1, r.w - e.w - 1)); });
+        row.h = Math.max(VH, ...es.map((e) => e.h)); row.y = yy; yy += row.h + ROWG;
+        es.forEach((e) => (e.oy = Math.round((row.h - e.h) / 2)));
+      });
+      const rowsH = yy - ROWG;
       // aparecen una a una, como las ventanas de la parte 1
+      s.ens.sort((a, b) => a.row - b.row || a.ox - b.ox);
       s.ens.forEach((e, k) => { e.st8 = 'enter'; e.et = -k * 0.05; });
       s.total = s.ens.length;
       const H = s.ens.reduce((a, e) => a + e.hp, 0);
       s.T = (2.4 + 0.55 * s.total + 0.3 * (H - s.total)) * (1 + 0.04 * (s.rows.length - 1));
       s.fy0 = r.y + 6;
-      const rowsH = s.rows.length * VH + (s.rows.length - 1) * ROWG;
       s.descV = Math.max(0, (s.zoneTop - 4 - rowsH - s.fy0) / s.T); // la formación llega a tu zona justo al acabar el tiempo
       s.fy = s.fy0; s.ens.forEach((e) => Object.assign(e, this.slotPos(s, e)));
       s.diveT = d >= 0.14 ? G.rand(1.2, 2.0) : 99; s.dropT = d >= 0.3 ? G.rand(0.6, 1.2) : 99;
@@ -203,9 +422,8 @@
       if (s.boss) this.updateBoss(s, dt, ph); else this.updateWave(s, dt, ph);
     },
     slotPos(s, e) {
-      const r = s.r, row = s.rows[e.row], y = s.fy + e.row * (VH + ROWG);
-      if (row.type === 'slide') return { x: row.x + e.slot * (VW + SLIDE_GAP), y };
-      return { x: r.x + 4 + e.slot * s.colSp, y };
+      const r = s.r, row = s.rows[e.row];
+      return { x: (row.type === 'slide' ? row.x : r.x) + e.ox, y: s.fy + row.y + e.oy };
     },
     updateWave(s, dt, ph) {
       const r = s.r, d = s.d;
@@ -218,15 +436,15 @@
       s.dropT -= dt;
       if (s.dropT <= 0) {
         s.dropT = (1.15 - 0.55 * d) * G.rand(0.7, 1.3);
-        const c = s.ens.filter((e) => e.st8 === 'form'), near = c.filter((e) => Math.abs(e.x + VW / 2 - s.pl.x) < 60);
+        const c = s.ens.filter((e) => e.st8 === 'form'), near = c.filter((e) => Math.abs(e.x + e.w / 2 - s.pl.x) < 60);
         const e = near.length && Math.random() < 0.6 ? G.pick(near) : c.length ? G.pick(c) : null;
-        if (e) pellet(s, e.x + VW / 2 + G.irand(-8, 8), e.y + VH + 4, 0, 125 + 90 * d);
+        if (e) pellet(s, e.x + e.w / 2 + G.irand(-8, 8), e.y + e.h + 4, 0, 125 + 90 * d);
       }
-      // de vez en cuando una ventana se lanza en picado hacia ti
+      // de vez en cuando una ventana (pequeña) se lanza en picado hacia ti
       s.diveT -= dt;
       if (s.diveT <= 0) {
         s.diveT = (2.6 - 1.4 * d) * G.rand(0.7, 1.3);
-        const c = s.ens.filter((e) => e.st8 === 'form' && e.kind !== 'shoot'); if (c.length) { const e = G.pick(c); e.st8 = 'tele'; e.tt = 0.42; A().sfx('beepT'); }
+        const c = s.ens.filter((e) => e.st8 === 'form' && e.kind !== 'shoot' && e.span !== 2); if (c.length) { const e = G.pick(c); e.st8 = 'tele'; e.tt = 0.42; A().sfx('beepT'); }
       }
       for (const e of s.ens) {
         const p = this.slotPos(s, e);
@@ -240,17 +458,17 @@
           e.tt -= dt; e.x = p.x + (Math.random() < 0.5 ? -1 : 1); e.y = p.y;
           if (e.tt <= 0) { e.st8 = 'dive'; e.vy = 150 + 140 * d; e.vx = 0; }
         } else if (e.st8 === 'dive') {
-          const want = G.clamp((s.pl.x + 4 - (e.x + VW / 2)) * 2.2, -110, 110); e.vx += (want - e.vx) * Math.min(1, dt * 3);
+          const want = G.clamp((s.pl.x + 4 - (e.x + e.w / 2)) * 2.2, -110, 110); e.vx += (want - e.vx) * Math.min(1, dt * 3);
           e.x += e.vx * dt; e.y += e.vy * dt;
-          if (e.y > r.y + r.h + 4) { e.st8 = 'back'; e.bt = 0; e.y = r.y - VH - 4; }
+          if (e.y > r.y + r.h + 4) { e.st8 = 'back'; e.bt = 0; e.y = r.y - e.h - 4; }
         } else if (e.st8 === 'back') { // vuelve a su sitio desde arriba
           e.bt += dt; const k = G.clamp(e.bt / 0.7, 0, 1);
-          e.x = G.lerp(e.x, p.x, Math.min(1, dt * 7)); e.y = G.lerp(r.y - VH - 4, p.y, k);
+          e.x = G.lerp(e.x, p.x, Math.min(1, dt * 7)); e.y = G.lerp(r.y - e.h - 4, p.y, k);
           if (k >= 1) e.st8 = 'form';
         }
-        // las tiradoras avisan (parpadean) y luego disparan adonde vas a estar
+        // las tiradoras avisan (parpadean) y luego disparan adonde vas a estar (la calavera grande, en abanico)
         if (e.kind === 'shoot' && e.st8 === 'form') {
-          if (e.tele > 0) { e.tele -= dt; if (e.tele <= 0) { const sp = 105 + 100 * d, spr = d >= 0.45 ? [-0.22, 0, 0.22] : [0]; for (const o of spr) { const v = aimAt(s, e.x + VW / 2, e.y + VH, sp, o, d >= 0.3 ? 1 : 0.5); pellet(s, e.x + VW / 2, e.y + VH + 3, v.vx, v.vy); } A().sfx('zap'); } }
+          if (e.tele > 0) { e.tele -= dt; if (e.tele <= 0) { const sp = 105 + 100 * d, spr = d >= 0.45 ? [-0.22, 0, 0.22] : e.span === 2 ? [-0.15, 0.15] : [0]; for (const o of spr) { const v = aimAt(s, e.x + e.w / 2, e.y + e.h, sp, o, d >= 0.3 ? 1 : 0.5); pellet(s, e.x + e.w / 2, e.y + e.h + 3, v.vx, v.vy); } A().sfx('zap'); } }
           else { e.ft -= dt; if (e.ft <= 0) { e.ft = (2.0 - 0.9 * d) * G.rand(0.75, 1.25); e.tele = 0.45; } }
         }
         if (hitR(e, ph)) return this.die(s, 'INFECTED!');
@@ -262,13 +480,16 @@
       for (const b of s.shots) {
         if (b.dead) continue;
         let best = null; // la bala choca con la ventana más cercana a ti
-        for (const e of list) if (!e.dead && e.y + VH > s.r.y + 2 && hitR(b, e) && (!best || e.y > best.y)) best = e;
+        for (const e of list) if (!e.dead && e.y + e.h > s.r.y + 2 && hitR(b, e) && (!best || e.y + e.h > best.y + best.h)) best = e;
         if (!best) continue;
         const e = best; b.dead = true; e.hp--; e.flash = 0.07;
         if (e.hp <= 0) {
           e.dead = true; s.kills++; ghost(s, e);
-          burst(s, e.x + VW / 2, e.y + 6, 5, e.st.bar === K ? (s.block === 0 ? W : e.st.fr) : e.st.bar);
-          A().sfx('close', Math.min(9, s.kills)); G.pulse({ ab: 1.5 }); G.vibrate(6);
+          burst(s, e.x + e.w / 2, e.y + 6, e.span === 2 ? 9 : 5, e.st.bar === K ? (s.block === 0 ? W : e.st.fr) : e.st.bar);
+          A().sfx('close', Math.min(9, s.kills)); G.pulse({ ab: e.span === 2 ? 2.5 : 1.5 }); G.vibrate(6);
+        } else if (e.look === 'stack') { // se cierra la ventana de delante del montón
+          const j = e.hp; ghost(s, { x: e.x + j * 4, y: e.y + j * 4, w: VW, h: VH, st: e.lst[j] }); e.st = e.lst[j - 1];
+          A().sfx('close', G.irand(2, 5)); burst(s, e.x + j * 4 + VW / 2, e.y + j * 4 + 6, 3, e.st.fr);
         } else { A().sfx('hit'); burst(s, b.x, b.y, 2, e.st.fr); }
       }
       for (let i = list.length - 1; i >= 0; i--) if (list[i].dead) list.splice(i, 1);
@@ -332,29 +553,24 @@
     // ---------- dibujo ----------
     drawEnemy(s, e) {
       let x = Math.round(e.x), y = Math.round(e.y);
+      const EW = e.w, EH = e.h;
       if (e.st8 === 'enter') { // se abre: contorno que crece, como al aparecer
         if (e.et < 0) return;
-        const k = Math.min(1, e.et / 0.12), ww = Math.max(4, VW * k), hh = Math.max(3, VH * k);
-        G.box(x + (VW - ww) / 2, y + (VH - hh) / 2, ww, hh, e.st.fr === K ? K : e.st.fr); return;
+        const k = Math.min(1, e.et / 0.12), ww = Math.max(4, EW * k), hh = Math.max(3, EH * k);
+        G.box(x + (EW - ww) / 2, y + (EH - hh) / 2, ww, hh, e.st.fr === K ? K : e.st.fr); return;
       }
       if (e.flash > 0) x += G.irand(-1, 1);
       const telegraph = (e.kind === 'shoot' && e.tele > 0) || e.st8 === 'tele';
       const blink = telegraph && Math.floor(G.time * 16) % 2 === 0;
       const st = blink ? { fr: e.st.fr, bd: e.st.tx, bar: e.st.bd, bt: e.st.tx, tx: e.st.bd, ac: e.st.bd, sh: e.st.sh, out: e.st.out } : e.st;
-      if (e.st8 === 'dive' && e.kind !== 'mini') { G.dash(x + 6, y - 6, VW - 12, st.fr === K ? W : st.fr, 2, 3); G.dash(x + 10, y - 10, VW - 20, st.fr === K ? W : st.fr, 2, 4); }
-      const rr = G.drawFrame({ x, y, w: VW, h: VH, st, title: e.title, stripes: false, xmode: 'x' });
-      if (e.kind === 'shoot') G.drawSpr(Math.floor(G.time * 6) % 2 ? 'bug' : 'bug2', rr.x + 2, rr.y + 2, { '#': st.tx, g: st.bd }, 1);
-      else if (e.kind === 'armor') { G.box(rr.x + 1, rr.y + 1, rr.w - 2, rr.h - 2, st.tx); G.drawSpr('warn', rr.x + 3, rr.y + 3, { '#': st.ac }); }
-      else G.drawSpr('xcirc', rr.x + 3, rr.y + 3, { '#': st.ac });
-      // botoncito OK
-      const bx = rr.x + rr.w - 21, byy = rr.y + 3;
-      G.rect(bx, byy, 18, 9, st.bd); G.box(bx, byy, 18, 9, st.tx); G.text('OK', bx + 9, byy + 1, st.tx, { al: 'c' });
-      if (e.max > 1 && e.hp < e.max) { // grietas según el daño
-        const n = e.max - e.hp, c0 = e.crack;
-        for (let i = 0; i < n; i++) { const cx0 = x + 8 + ((c0 * 7 + i * 17) % (VW - 16)); G.line(cx0, y + 1, cx0 + 4, y + 9, st.tx); G.line(cx0 + 4, y + 9, cx0 - 1, y + 17, st.tx); G.line(cx0 - 1, y + 17, cx0 + 5, y + VH - 2, st.tx); }
+      if (e.st8 === 'dive' && e.kind !== 'mini') { G.dash(x + 6, y - 6, EW - 12, st.fr === K ? W : st.fr, 2, 3); G.dash(x + 10, y - 10, EW - 20, st.fr === K ? W : st.fr, 2, 4); }
+      (DRAW[e.look] || DRAW.err)(x, y, e, st);
+      if (e.max > 1 && e.hp < e.max && e.look !== 'stack') { // grietas según el daño
+        const n = e.max - e.hp, c0 = e.crack, sp = Math.max(4, EW - 16);
+        for (let i = 0; i < n; i++) { const cx0 = x + 8 + ((c0 * 7 + i * 17) % sp); G.line(cx0, y + 1, cx0 + 4, y + 9, st.tx); G.line(cx0 + 4, y + 9, cx0 - 1, y + 17, st.tx); G.line(cx0 - 1, y + 17, cx0 + 5, y + EH - 2, st.tx); }
       }
-      if (e.flash > 0) G.drect(x, y, VW, VH, 8, W, null);
-      if (telegraph) { const tw = 9; G.rect(x + VW / 2 - tw / 2, y - 12, tw, 10, K); G.text('!', x + VW / 2, y - 10, W, { al: 'c', b: true }); }
+      if (e.flash > 0) G.drect(x, y, EW, EH, 8, W, null);
+      if (telegraph) { const tw = 9; G.rect(x + EW / 2 - tw / 2, y - 12, tw, 10, K); G.text('!', x + EW / 2, y - 10, W, { al: 'c', b: true }); }
     },
     drawBullet(q) {
       const x = Math.round(q.x), y = Math.round(q.y), n = q.big ? 11 : 9, h = Math.floor(n / 2);
