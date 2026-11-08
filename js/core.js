@@ -5,7 +5,7 @@ window.G = window.G || {};
   // Paleta oficial del juego (medida del dossier)
   G.PAL = { G: '#46ff00', B: '#0000ff', L: '#dddddd', K: '#000000', W: '#ffffff' };
   G.time = 0;
-  G.VERSION = 'V9'; // versión visible en la pantalla de carga y en SYSTEM
+  G.VERSION = 'V10'; // versión visible en la pantalla de carga y en SYSTEM
 
   const scr = document.getElementById('screen');
   const sg = scr.getContext('2d', { alpha: false });

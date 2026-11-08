@@ -30,7 +30,7 @@
   };
   S.exit = function () { A().muffle(false); };
   // fondo: en la parte 2 es la placa del ordenador por dentro
-  S.pickWall = function () { return this.L.p2 ? G.coreWallpaper(G.irand(0, 5)) : this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block); };
+  S.pickWall = function () { return this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block); };
   S.resize = function () {
     this.wall = this.pickWall();
     const ar = area();
