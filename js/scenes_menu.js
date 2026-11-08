@@ -25,17 +25,37 @@
 
   // ================= MENÚ =================
   G.scenes.menu = {
-    items: [['JACK IN', 'play'], ['SECTORS', 'sectors'], ['SYSTEM', 'system'], ['MEMORY CORE', 'memory'], ['PART 2 TEST', 'core'], ['SHUTDOWN', 'shutdown']],
-    enter(p) { this.sel = p && p.sel != null ? p.sel : 0; this.act = -1; this.at = 0; this.track = -80; A().music('ambient'); A().intensity(0); A().loop('hum', false); G.fx.abBase = 1.6; },
+    BASE: [['JACK IN', 'play'], ['SECTORS', 'sectors'], ['SYSTEM', 'system'], ['MEMORY CORE', 'memory'], ['SHUTDOWN', 'shutdown']],
+    // CORE (GAME+) entra en el menú, antes de SHUTDOWN, cuando está abierto
+    setItems(core) { this.items = this.BASE.slice(); if (core) this.items.splice(4, 0, ['CORE', 'core']); },
+    enter(p) {
+      const sv = G.save.data, open = G.coreOpen();
+      this.unlock = open && !sv.coreSeen ? 0 : -1; // la primera vez: la pantalla tiembla y aparece CORE
+      this.setItems(open && this.unlock < 0);
+      this.sel = G.clamp(p && p.sel != null ? p.sel : 0, 0, this.items.length - 1); this.act = -1; this.at = 0; this.track = -80;
+      A().music('ambient'); A().intensity(0); A().loop('hum', false); G.fx.abBase = 1.6;
+    },
     lay() {
       const top = G.safeT + 12, by = G.H - G.safeB - 40;
       const step = Math.round(G.clamp((by - top - 100) / 6, 23, 34));
       return { top, y0: top + 58 + Math.round((step - 23) * 0.8), step, eY: top + 30 + Math.round((step - 23) * 0.4) };
     },
     update(dt) {
+      if (this.unlock >= 0) { this.updUnlock(dt); return; }
       if (this.act >= 0) { this.at += dt; if (this.at > 0.32) { const a = this.items[this.act][1]; this.act = -1; this.run(a); return; } }
       this.track += dt * 70; if (this.track > G.H + 20) this.track = -G.irand(80, 400);
       G.fx.abBase = 1.6 + (Math.random() < 0.03 ? G.rand(1, 3) : 0);
+    },
+    // desbloqueo de GAME+: 0.6 s de calma, glitch con temblor de toda la pantalla, aparece CORE
+    updUnlock(dt) {
+      const t0 = this.unlock, t = (this.unlock += dt);
+      if (t0 < 0.6 && t >= 0.6) { A().sfx('glitch'); A().sfx('boom'); G.vibrate([60, 40, 120]); }
+      if (t >= 0.6 && t < 2.2) {
+        G.pulse({ glitch: 1, shake: 9, ab: 8 }); G.fx.abBase = 4;
+        if (Math.random() < dt * 6) { A().sfx('glitch'); this.track = G.irand(0, G.H); }
+      }
+      if (t0 < 2.2 && t >= 2.2) { this.setItems(true); this.sel = 4; A().sfx('clear'); G.pulse({ flash: 0.6, flashCol: P.G, ab: 4 }); }
+      if (t >= 3.4) { this.unlock = -1; G.fx.abBase = 1.6; G.save.data.coreSeen = 1; G.save.write(); }
     },
     run(a) {
       if (a === 'play') G.jackIn();
@@ -54,6 +74,10 @@
         const arrowOn = i !== this.sel || Math.floor(G.time * 3) % 2 === 0;
         if (arrowOn) G.text('➤', 10 + (i === this.sel ? 2 : 0), y, col, { s: 2 });
         G.text(lb, 30, y, col, { s: 2 });
+        if (lb === 'CORE') { // etiqueta GAME+ en verde
+          const tx = 30 + G.textW(lb, 2) + 8, tw = G.textW('GAME+', 1, 1, true) + 7;
+          G.rect(tx, y + 1, tw, 11, flashing ? B : P.G); G.text('GAME+', tx + 3, y + 3, flashing ? W : K, { b: true });
+        }
       });
       osdDivider(L0.y0 + this.items.length * L0.step + 2);
       const by = Hd - G.safeB - 40;
@@ -63,10 +87,25 @@
       G.text('PLAY   SP', Wd - 9, by - 30, W, { al: 'r' });
       G.text(clock, Wd - 9, by - 19, W, { s: 2, al: 'r' });
       vhsTrack(g, Math.floor(this.track));
-      G.drawNoise(0.03);
+      if (this.unlock >= 0.6) this.drawUnlock(g);
+      G.drawNoise(this.unlock >= 0.6 && this.unlock < 2.2 ? 0.12 : 0.03);
+    },
+    // aviso de GAME+ encima del menú mientras tiembla
+    drawUnlock(g) {
+      const t = this.unlock, Wd = G.W, L0 = this.lay(), cy = Math.round(L0.y0 + 6 * L0.step + 16 + (G.H - G.safeB - 52 - (L0.y0 + 6 * L0.step + 16)) / 2);
+      if (t < 2.2) { for (let k = 0; k < 3; k++) vhsTrack(g, G.irand(0, G.H - 8)); if (Math.floor(t * 14) % 3 === 0) return; }
+      const fs = Math.max(26, Math.floor(Wd / 4.6));
+      const spr = G.fsprite('GAME+', 'italic 900 ' + fs + 'px ' + G.FONT_HEAVY, W, 120);
+      const bw = Math.min(Wd - 16, spr.width + 28), bh = spr.height + 40, bx = Math.round(Wd / 2 - bw / 2), by = Math.round(cy - bh / 2);
+      G.rect(bx + 3, by + 3, bw, bh, K); G.rect(bx, by, bw, bh, K); G.box(bx, by, bw, bh, P.G);
+      G.rect(bx + 1, by + 1, bw - 2, 10, P.G); G.text('CORE.EXE', bx + 4, by + 2, K);
+      if (t < 2.2 && Math.random() < 0.5) g.drawImage(G.fsprite('GAME+', 'italic 900 ' + fs + 'px ' + G.FONT_HEAVY, P.G, 120), Math.round(Wd / 2 - spr.width / 2) + G.irand(-5, 5), by + 14);
+      g.drawImage(spr, Math.round(Wd / 2 - spr.width / 2), by + 14);
+      const msg = t < 2.2 ? 'ACCESS GRANTED...' : 'NEW SECTOR: CORE';
+      G.text(msg, Wd / 2, by + bh - 14, P.G, { al: 'c', b: true });
     },
     tap(x, y) {
-      if (this.act >= 0) return;
+      if (this.act >= 0 || this.unlock >= 0) return;
       const L0 = this.lay();
       for (let i = 0; i < this.items.length; i++) {
         const yy = L0.y0 + i * L0.step;
@@ -74,7 +113,7 @@
       }
     },
     key(k) {
-      if (this.act >= 0) return;
+      if (this.act >= 0 || this.unlock >= 0) return;
       if (k === 'ArrowUp') { this.sel = (this.sel + this.items.length - 1) % this.items.length; A().sfx('tap'); }
       if (k === 'ArrowDown') { this.sel = (this.sel + 1) % this.items.length; A().sfx('tap'); }
       if (k === 'Enter' || k === ' ') { this.act = this.sel; this.at = 0; A().sfx('tap'); }

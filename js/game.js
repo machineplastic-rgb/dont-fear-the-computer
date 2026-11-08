@@ -522,7 +522,7 @@
     lines.forEach(([a, b], i) => { G.text(a, r.x + 8, r.y + 34 + i * 9, s.tx); G.text(b, r.x + r.w - 8, r.y + 34 + i * 9, s.tx, { al: 'r' }); });
     if (this.score > this.prevBest) { if (Math.floor(this.st * 4) % 2 === 0) G.text('NEW RECORD', r.x + r.w / 2, r.y + 72, s.tx, { al: 'c', b: true }); }
     const nt = Math.min(3, this.oldTier + 1);
-    if (this.L.p2) G.text('PART 2  -  TEST BUILD', r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
+    if (this.L.p2) G.text('GAME+  -  CORE', r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
     else if (this.n !== 12) G.text(this.oldTier >= 3 ? 'OMEGA+ MASTERED' : 'NEXT RUN: ' + G.TIERS[nt], r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
     else G.text('SOMETHING IS WAKING UP', r.x + r.w / 2, r.y + 84 + (Math.random() < 0.2 ? 1 : 0), s.tx, { al: 'c' });
     w.btns.forEach((b) => G.drawBtn(b.x, b.y, b.w, b.h, b.lbl, s.tx, s.bd));

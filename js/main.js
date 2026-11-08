@@ -2,6 +2,7 @@
 // Arranque
 (function (G) {
   G.save.load();
+  if (/[?&]core(=|&|$)/.test(location.search)) { G.save.data.coreDev = 1; G.save.write(); } // atajo de prueba: abre GAME+ sin pasarse la parte 1
   G.resize();
   G.go('power');
   G.start();

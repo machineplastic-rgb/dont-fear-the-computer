@@ -1,9 +1,9 @@
 // Service worker: el juego funciona sin conexión tras la primera carga.
-const CACHE_NAME = 'dftc-v10';
+const CACHE_NAME = 'dftc-v11';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'js/core.js', 'js/font.js', 'js/gfx.js', 'js/art.js', 'js/deskart.js', 'js/draws.js', 'js/audio.js', 'js/ui.js',
-  'js/levels.js', 'js/scenes_intro.js', 'js/scenes_menu.js', 'js/game.js', 'js/micro.js', 'js/part2.js', 'js/p2_antivirus.js', 'js/p2_download.js', 'js/p2_screensaver.js', 'js/p2_taskmgr.js', 'js/p2_selectall.js', 'js/p2_savenow.js', 'js/p2_dialup.js', 'js/main.js',
+  'js/levels.js', 'js/scenes_intro.js', 'js/scenes_menu.js', 'js/game.js', 'js/micro.js', 'js/part2.js', 'js/p2_antivirus.js', 'js/p2_download.js', 'js/p2_popbreaker.js', 'js/p2_taskmgr.js', 'js/p2_cascade.js', 'js/p2_shred.js', 'js/p2_dialup.js', 'js/main.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 const FONT_CACHE = 'dftc-fonts';

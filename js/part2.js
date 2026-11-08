@@ -1,5 +1,5 @@
 'use strict';
-// PARTE 2 (prueba): pantalla con los 7 juegos, igual que SECTORS de la parte 1,
+// GAME+ (CORE): pantalla con los 7 juegos nuevos, igual que SECTORS de la parte 1,
 // y valores por defecto para que nada falle mientras un juego no esté cargado.
 (function (G) {
   const P = G.PAL, K = P.K, W = P.W, B = P.B, Gr = P.G;
@@ -40,16 +40,16 @@
       const Wd = G.W, t = this.t, h = this.hdr;
       G.rect(0, 0, Wd, G.H, W);
       G.rect(h.x, h.y, h.w, h.h, K);
-      G.text('PART2.EXE', h.x + 3, h.y + 3, W);
-      const sx0 = h.x + 3 + G.textW('PART2.EXE') + 4, sx1 = h.x + h.w - 14;
+      G.text('CORE.EXE', h.x + 3, h.y + 3, W);
+      const sx0 = h.x + 3 + G.textW('CORE.EXE') + 4, sx1 = h.x + h.w - 14;
       for (const k of [3, 5, 7, 9]) G.rect(sx0, h.y + k, sx1 - sx0, 1, W);
       G.drawX({ x: h.x + h.w - 12, y: h.y + 2, w: 9, h: 9 }, W);
       for (const c of this.cards) {
         if (this.sel && this.sel.n === c.n) continue;
         G.drawCard(c.n, c.x, c.y, c.w, c.h, t + c.n * 0.37, this.ic, G.save.lv(c.n), false);
       }
-      G.text('PART 2  -  TEST BUILD', 5, this.footY, K);
-      G.text((G.P2_LAST - G.P2_FIRST + 1) + ' GAMES', Wd - 5, this.footY, K, { al: 'r' });
+      G.text('GAME+', 5, this.footY, K, { b: true });
+      G.text((G.P2_LAST - G.P2_FIRST + 1) + ' SECTORS', Wd - 5, this.footY, K, { al: 'r' });
       if (this.sel) {
         const c = this.sel, k = Math.min(1, this.anim / 0.45), e = k * k;
         G.target(this.cc.x); G.drawCard(c.n, 0, 0, c.w, c.h, t, this.ic, G.save.lv(c.n), false); G.target(g);

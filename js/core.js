@@ -5,7 +5,7 @@ window.G = window.G || {};
   // Paleta oficial del juego (medida del dossier)
   G.PAL = { G: '#46ff00', B: '#0000ff', L: '#dddddd', K: '#000000', W: '#ffffff' };
   G.time = 0;
-  G.VERSION = 'V10'; // versión visible en la pantalla de carga y en SYSTEM
+  G.VERSION = 'V11'; // versión visible en la pantalla de carga y en SYSTEM
 
   const scr = document.getElementById('screen');
   const sg = scr.getContext('2d', { alpha: false });
@@ -288,4 +288,7 @@ window.G = window.G || {};
   };
   // puntuación total (la misma que el TOTAL de MEMORY CORE)
   G.coreTotal = function () { const sv = G.save.data; let t = sv.best13 || 0; for (let n = 1; n <= sv.unlocked; n++) t += G.save.lv(n).best; return t; };
+  // GAME+ (CORE): se abre al pasarse la parte 1 (sector 13) con más de 50.000 de total
+  G.CORE_SCORE = 50000;
+  G.coreOpen = function () { const sv = G.save.data; return !!(sv.coreDev || (sv.beat13 && G.coreTotal() > G.CORE_SCORE)); };
 })(window.G);

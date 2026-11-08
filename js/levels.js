@@ -28,11 +28,11 @@
     // PARTE 2 (prueba): dentro del ordenador. No desbloquean nada de la parte 1.
     { n: 14, name: 'ANTIVIRUS', mode: 'micro', game: 'antivirus', block: 1, rounds: 6, p2: true },
     { n: 15, name: 'DOWNLOAD', mode: 'micro', game: 'download', block: 1, rounds: 6, p2: true },
-    { n: 16, name: 'SCREENSAVER', mode: 'micro', game: 'screensaver', block: 1, rounds: 6, p2: true },
-    { n: 17, name: 'TASK.MGR', mode: 'micro', game: 'taskmgr', block: 2, rounds: 6, p2: true },
-    { n: 18, name: 'SELECT.ALL', mode: 'micro', game: 'selectall', block: 2, rounds: 6, p2: true },
-    { n: 19, name: 'SAVE.NOW', mode: 'micro', game: 'savenow', block: 2, rounds: 6, p2: true },
-    { n: 20, name: 'DIAL.UP', mode: 'micro', game: 'dialup', block: 3, rounds: 6, p2: true },
+    { n: 16, name: 'POP.BREAKER', mode: 'micro', game: 'popbreaker', block: 2, rounds: 6, p2: true },
+    { n: 17, name: 'TASK.MGR', mode: 'micro', game: 'taskmgr', block: 1, rounds: 6, p2: true },
+    { n: 18, name: 'CASCADE', mode: 'micro', game: 'cascade', block: 2, rounds: 6, p2: true },
+    { n: 19, name: 'SHRED.EXE', mode: 'micro', game: 'shred', block: 3, rounds: 6, p2: true },
+    { n: 20, name: 'DIAL.UP', mode: 'micro', game: 'dialup', block: 1, rounds: 6, p2: true },
   ];
   G.P2_FIRST = 14; G.P2_LAST = 20;
 

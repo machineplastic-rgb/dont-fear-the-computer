@@ -150,7 +150,8 @@
       for (let k = 0; k < cols; k++) {
         const v = s.hist[s.hist.length - 1 - k]; if (v == null) break;
         const hh = Math.max(1, Math.round((gh - 4) * v / 100)), x = gx + gw - 4 - k * 3;
-        const c = hot && k < 4 ? (s.acc === L ? W : s.acc) : st.tx;
+        let hc = s.acc === L ? W : s.acc; if (hc === st.bd) hc = K; // el acento no puede ser del color del fondo de la gráfica
+        const c = hot && k < 4 ? hc : st.tx;
         G.rect(x, gy + gh - 2 - hh, 2, Math.min(2, hh), c); if (hh > 2) G.drect(x, gy + gh - hh, 2, hh - 2, 8, c, null);
       }
     },
@@ -166,12 +167,12 @@
       }
       const rogue = p.kind === 'rogue', sys = p.kind === 'sys', killed = s.killed === p, frozen = s.frozen === p;
       let tc = fg, rb = null;
-      if (rogue) { rb = K; tc = Math.floor(s.t * 8) % 2 ? Gr : W; G.rect(x + 1, y + 2, w - 2, ROW_H - 3, K); G.drect(x + 1, y + 2, w - 2, ROW_H - 3, 4, s.block >= 2 ? Gr : B, null); G.rect(x + 3, y + 4, 82, ROW_H - 7, K); }
+      if (rogue) { rb = K; tc = Math.floor(s.t * 8) % 2 ? (s.block >= 2 ? Gr : L) : W; G.rect(x + 1, y + 2, w - 2, ROW_H - 3, K); G.drect(x + 1, y + 2, w - 2, ROW_H - 3, 4, s.block >= 2 ? Gr : B, null); G.rect(x + 3, y + 4, 82, ROW_H - 7, K); }
       if (killed || frozen) { rb = hiC; tc = W; G.rect(x + 1, y + 2, w - 2, ROW_H - 3, hiC); }
       else if (p.flash > 0 && !rogue) G.box(x + 1, y + 2, w - 2, ROW_H - 3, hiC, 2);
       // icono y nombre
       const iy = y + 5;
-      if (rogue) G.drawSpr(Math.floor(s.t * 10) % 2 ? 'bug' : 'bug2', x + 4, iy + 2, { '#': W, g: Gr });
+      if (rogue) G.drawSpr(Math.floor(s.t * 10) % 2 ? 'bug' : 'bug2', x + 4, iy + 2, { '#': W, g: s.block >= 2 ? Gr : B });
       else G.ctx().drawImage(G.icon16(p.ic, rb ? W : fg, rb || bg, s.block >= 2 ? Gr : B), x + 3, iy);
       const nx = x + 21;
       G.text(p.name, nx, y + 6, tc, { b: p.cpu > 75 || rogue });
@@ -186,7 +187,7 @@
       else if (hang && !rb) G.drawSpr(Math.floor(s.t * 3) % 2 ? 'hg1' : 'hg2', nx + G.textW(sub) + 4, y + 17, { '#': fg, o: fg });
       // barra de CPU punteada
       const btnW = 30, bx = x + 21 + 72, bw = Math.max(20, w - (bx - x) - btnW - 34), by = y + 7;
-      const bc = rb ? (rogue ? Gr : W) : fg;
+      const ra = s.block >= 2 ? Gr : W, bc = rb ? (rogue ? ra : W) : fg;
       G.box(bx, by, bw, 9, bc);
       const f = Math.round((bw - 4) * Math.min(1, p.cpu / 100)), hot = p.cpu > 75 && Math.floor(s.t * 8) % 2;
       if (sys && !rb) G.drect(bx + 2, by + 2, f, 5, 8, fg, null);
@@ -195,7 +196,7 @@
       // botón END (o candado en los del sistema)
       const ex = x + w - btnW - 3, ey = y + 7;
       if (sys) { G.drect(ex, ey, btnW, 20, 8, rb ? W : fg, null); G.rect(ex + btnW / 2 - 6, ey + 4, 12, 12, rb || bg); G.box(ex + btnW / 2 - 6, ey + 4, 12, 12, rb ? W : fg); G.drawSpr('lock', ex + btnW / 2 - 3, ey + 6, { '#': rb ? W : fg }); }
-      else G.drawBtn(ex, ey, btnW, 20, 'END', rogue ? Gr : rb ? W : fg, rogue ? K : rb || bg, false, { double: rogue });
+      else G.drawBtn(ex, ey, btnW, 20, 'END', rogue ? ra : rb ? W : fg, rogue ? K : rb || bg, false, { double: rogue });
     },
     draw(s) {
       const r = s.r, st = s.st, w0 = s.win0, fg = st.tx;
@@ -242,13 +243,13 @@
 
   // icono de la tarjeta: tres barras de CPU que suben; la que se llena se cierra
   G.ICONS[17] = function (t) {
-    G.rect(1, 1, 22, 18, W); G.box(1, 1, 22, 18, K); G.rect(1, 1, 22, 4, K); G.px(20, 2, W); G.px(18, 2, W);
+    G.rect(1, 1, 22, 18, W); G.box(1, 1, 22, 18, B); G.rect(1, 1, 22, 4, B); G.px(20, 2, W); G.px(18, 2, W);
     [0.9, 1.35, 0.6].forEach((sp, i) => {
       const y = 7 + i * 4, c = (t * sp * 0.55 + i * 0.37) % 1.15, f = Math.min(1, c);
-      G.rect(3, y, 2, 3, K);
-      G.box(6, y, 15, 3, K);
-      if (c > 1) G.rect(6, y, 15, 3, Gr); else G.rect(7, y + 1, Math.round(13 * f), 1, f > 0.75 ? B : K);
+      G.rect(3, y, 2, 3, B);
+      G.box(6, y, 15, 3, B);
+      if (c > 1) G.rect(6, y, 15, 3, K); else G.rect(7, y + 1, Math.round(13 * f), 1, f > 0.75 ? K : B);
     });
   };
-  G.CARD_SCHEMES[17] = { top: B, tt: W, ib: Gr, grid: K, bot: L, nc: B, bt: K };
+  G.CARD_SCHEMES[17] = { top: B, tt: W, ib: B, grid: W, bot: L, nc: B, bt: B };
 })(window.G);

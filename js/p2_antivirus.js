@@ -17,8 +17,94 @@
   const pool = (s) => POOL[Math.min(3, s.block)];
   const TITLES = ['ERROR', 'ALERT', 'SPAM', '404', 'OOPS']; // VIRUS queda solo para las que disparan
 
+  // ---------- jefe: estilos fijos (azul y blanco) y el dibujo blanco sobre azul ----------
+  const BOSS_ST = { fr: W, bd: B, bar: W, bt: B, tx: W, ac: W, sh: K, out: K };
+  const RAGE_ST = { fr: K, bd: B, bar: K, bt: W, tx: W, ac: W, sh: K, out: W };
+  const ART_TXT = [['Bye Bye', 'YOUR DATA'], ['Delete', 'EVERYTHING']]; // normal / a media vida
+  const artCache = new Map();
+  // máscara 1 bit del dibujo: cometa con estela, bicho saltando, palabra en cursiva perfilada y palabra rayada que se deshace en guiones
+  function artMask(w, h, rage) {
+    const o = G.mkCanvas(w, h), x = o.x, R = G.rng(rage ? 77 : 41);
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    // estela: banda que se estrecha (perfil blanco), de la cola a la estrella
+    const sx = w - 17, sy = 14;
+    const p0 = { x: 3, y: 36 }, c1 = { x: w * 0.4, y: -3 }, p2 = { x: sx - 8, y: sy + 3 };
+    const bez = (t) => ({ x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * c1.x + t * t * p2.x, y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * c1.y + t * t * p2.y });
+    for (const pass of [0, 1]) {
+      x.fillStyle = pass ? '#000' : '#fff';
+      for (let t = 0; t <= 1; t += 0.003) {
+        const p = bez(t), hw = 0.55 + 4.4 * Math.pow(t, 1.25), rr = pass ? hw - 1.35 : hw;
+        if (rr > 0.2) { x.beginPath(); x.arc(p.x, p.y, rr, 0, Math.PI * 2); x.fill(); }
+      }
+    }
+    // estrella de 5 puntas perfilada
+    const star = (R1, R2, col) => {
+      x.fillStyle = col; x.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + 0.25 + i * Math.PI / 5, rr = i % 2 ? R2 : R1; x.lineTo(sx + Math.cos(a) * rr, sy + Math.sin(a) * rr); }
+      x.closePath(); x.fill();
+    };
+    star(12.5, 5.4, '#fff'); star(10.6, 4, '#000');
+    // palabra en cursiva con perfil
+    const [t1, t2] = ART_TXT[rage ? 1 : 0];
+    x.textBaseline = 'alphabetic';
+    let fs = 27; x.font = 'italic bold ' + fs + 'px Georgia, "Times New Roman", serif';
+    while (x.measureText(t1).width > w - 30 && fs > 14) { fs--; x.font = 'italic bold ' + fs + 'px Georgia, "Times New Roman", serif'; }
+    const ty = 54;
+    x.lineJoin = 'round'; x.lineWidth = 2.8; x.strokeStyle = '#fff'; x.strokeText(t1, 4, ty);
+    x.fillStyle = '#000'; x.fillText(t1, 4, ty);
+    // el bicho salta hacia la estrella, con rayas de movimiento (tapa el final de la cursiva, como en un cartel)
+    const bx = w - 28, by = 23, spr = G.spr('bug', { '#': '#ffffff', g: '#000000' });
+    x.fillStyle = '#fff';
+    for (let i = 0; i < 3; i++) { const lx = bx - 3 - i * 3, ly = by + 16 + i * 3; for (let k = 0; k < 7 - i * 2; k++) x.fillRect(lx - k, ly + Math.round(k * 0.5), 1, 1); }
+    const sil = G.spr('bug', { '#': '#000000', g: '#000000' }); // halo azul con su silueta: el bicho queda delante de las letras
+    for (let oy = -2; oy <= 2; oy += 2) for (let ox = -2; ox <= 2; ox += 2) x.drawImage(sil, bx + ox, by + oy, 26, 22);
+    x.drawImage(spr, bx, by, 26, 22);
+    // palabra gorda rayada (líneas horizontales) que se deshace en guiones por abajo
+    const tc = G.mkCanvas(w, 30), tx = tc.x;
+    let fs2 = 22; tx.font = '900 ' + fs2 + 'px ' + G.FONT_HEAVY;
+    while (tx.measureText(t2).width > w - 8 && fs2 > 10) { fs2--; tx.font = '900 ' + fs2 + 'px ' + G.FONT_HEAVY; }
+    const tw = Math.ceil(tx.measureText(t2).width), tx0 = Math.round((w - tw) / 2);
+    tx.fillStyle = '#fff'; tx.textBaseline = 'alphabetic'; tx.fillText(t2, tx0, 24);
+    const td = tx.getImageData(0, 0, w, 30).data;
+    const id = x.getImageData(0, 0, w, h), d = id.data;
+    const y0 = 61; let top = 99, bot = -1;
+    for (let yy = 0; yy < 30; yy++) for (let xx = 0; xx < w; xx++) if (td[(yy * w + xx) * 4] > 127) { top = Math.min(top, yy); bot = Math.max(bot, yy); }
+    const set = (xx, yy, v) => { if (xx < 0 || yy < 0 || xx >= w || yy >= h) return; const i = (yy * w + xx) * 4; d[i] = d[i + 1] = d[i + 2] = v; };
+    const SY = 1.6, outH = Math.round((bot - top + 1) * SY); // estirada en vertical para que se lea con las rayas
+    for (let oy = 0; oy < outH; oy++) {
+      if (oy % 3 === 2) continue; // hueco entre rayas
+      const yy = top + Math.min(bot - top, Math.floor(oy / SY));
+      for (let xx = 0; xx < w; xx++) if (td[(yy * w + xx) * 4] > 127) set(xx, y0 + oy, 255);
+    }
+    // guiones que se van separando debajo
+    const dy0 = y0 + outH + 2;
+    for (let k = 0; k < 4; k++) {
+      let xx = tx0 + R() * 4;
+      while (xx < tx0 + tw) {
+        const len = Math.max(2, Math.round(G.lerp(9, 3, k / 3) * (0.5 + R()))), gap = Math.round(2 + k * 2.5 + R() * (3 + k * 3));
+        if (R() > k * 0.12) for (let i = 0; i < len; i++) set(Math.round(xx) + i, dy0 + k * 2, 255);
+        xx += len + gap;
+      }
+    }
+    // a 1 bit
+    const m = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) m[i] = d[i * 4] > 127 ? 1 : 0;
+    return m;
+  }
+  function bossArt(w, h, rage, inv) { // inv: invertido (aviso de ataque)
+    const k = w + 'x' + h + (rage ? 'r' : '') + (inv ? 'i' : '');
+    let c = artCache.get(k); if (c) return c;
+    const mk = 'm' + w + 'x' + h + (rage ? 'r' : '');
+    let m = artCache.get(mk); if (!m) { m = artMask(w, h, rage); artCache.set(mk, m); }
+    const o = G.mkCanvas(w, h), id = o.x.createImageData(w, h), d = id.data, fg = G.hexRGB(inv ? B : W), bg = G.hexRGB(inv ? W : B);
+    for (let i = 0; i < w * h; i++) { const c3 = m[i] ? fg : bg; d[i * 4] = c3[0]; d[i * 4 + 1] = c3[1]; d[i * 4 + 2] = c3[2]; d[i * 4 + 3] = 255; }
+    o.x.putImageData(id, 0, 0);
+    artCache.set(k, o.c);
+    return o.c;
+  }
+
   // ---------- utilidades ----------
-  const hitR = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const hitR =(a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   function burst(s, x, y, n, col) { for (let i = 0; i < n; i++) s.parts.push({ x, y, vx: G.rand(-60, 60), vy: G.rand(-80, 10), t: 0, life: G.rand(0.25, 0.5), col }); } // como al cerrar ventanas en la parte 1
   function ghost(s, o) { s.ghosts.push({ x: o.x, y: o.y, w: o.w, h: o.h, t: 0, col: o.st.fr === K ? (s.block === 0 ? W : K) : o.st.fr }); }
   function pellet(s, x, y, vx, vy, big) { s.pel.push({ x, y, vx, vy, big: !!big }); }
@@ -77,8 +163,8 @@
       s.diveT = d >= 0.14 ? G.rand(1.2, 2.0) : 99; s.dropT = d >= 0.3 ? G.rand(0.6, 1.2) : 99;
     },
     initBoss(s) {
-      const r = s.r, w = Math.min(124, r.w - 40), h = 116, pl = pool(s);
-      s.bo = { st: G.WSTYLES[pl.boss], title: 'VIRUS DETECTED', stripes: true, xmode: 'x', x: r.x + r.w / 2 - w / 2, y: r.y - h - 10, w, h, hp: 80, max: 80, ph: 'enter', pt: 0, pat: 0, flash: 0, rage: false, dying: -1, vol: 0, volT: 0, ang: 0, hits: 0 };
+      const r = s.r, w = Math.min(124, r.w - 40), h = 136;
+      s.bo = { st: BOSS_ST, title: 'VIRUS DETECTED', stripes: true, xmode: 'x', x: r.x + r.w / 2 - w / 2, y: r.y - h - 10, w, h, hp: 80, max: 80, ph: 'enter', pt: 0, pat: 0, flash: 0, gl: 0, rage: false, dying: -1, vol: 0, volT: 0, ang: 0, hits: 0 };
       s.T = 20;
     },
     // ---------- entrada: arrastre relativo con un dedo (el último que toca manda) ----------
@@ -195,6 +281,7 @@
     updateBoss(s, dt, ph) {
       const r = s.r, bo = s.bo;
       if (bo.flash > 0) bo.flash -= dt;
+      if (bo.gl > 0) bo.gl -= dt;
       if (bo.dying >= 0) { // se cierra a trozos y luego se gana
         bo.dying += dt;
         if (Math.random() < dt * 14) { const gw = G.irand(20, 50), gh = G.irand(14, 34); s.ghosts.push({ x: bo.x + G.rand(0, bo.w - gw), y: bo.y + G.rand(0, bo.h - gh), w: gw, h: gh, t: 0, col: W }); burst(s, bo.x + Math.random() * bo.w, bo.y + Math.random() * bo.h, 4, G.pick([W, bo.st.bd])); A().sfx('close', G.irand(3, 9)); }
@@ -234,7 +321,8 @@
       if (bo.ph !== 'enter') for (const b of s.shots) {
         if (b.dead || !hitR(b, bo)) continue;
         b.dead = true; bo.hp--; bo.hits++; bo.flash = 0.08; burst(s, b.x, b.y, 2, W); A().sfx('hit');
-        if (!bo.rage && bo.hp <= bo.max / 2) { bo.rage = true; bo.st = G.WSTYLES[pool(s).rage]; bo.title = 'CRITICAL ERROR'; G.pulse({ glitch: 0.8, ab: 4 }); A().sfx('alarm'); }
+        bo.gl = 0.13; bo.glSeed = Math.random(); G.pulse({ glitch: 0.3, ab: 2.5 }); // glitch en cada golpe
+        if (!bo.rage && bo.hp <= bo.max / 2) { bo.rage = true; bo.st = RAGE_ST; bo.title = 'CRITICAL ERROR'; bo.gl = 0.35; G.pulse({ glitch: 0.8, ab: 4 }); A().sfx('alarm'); }
         if (bo.hp > 0 && bo.hits % 14 === 0) { // como en la parte 1: salta a otro sitio
           ghost(s, bo); bo.ang += G.rand(1.6, 3.2) * (Math.random() < 0.5 ? -1 : 1); A().sfx('glitch'); G.pulse({ glitch: 0.7 });
         }
@@ -298,16 +386,30 @@
       if (bo.dying >= 0 && Math.floor(bo.dying * 18) % 2) return; // parpadea mientras se cierra
       const st = bo.st, x = Math.round(bo.x) + (bo.dying >= 0 || bo.flash > 0 ? G.irand(-2, 2) : 0), y = Math.round(bo.y);
       const r = G.drawFrame({ x, y, w: bo.w, h: bo.h, st, title: bo.title, stripes: true, xmode: 'x' });
-      // calavera y barra INFECTION, igual que el jefe de la parte 1 (con el color del bloque)
-      const sx = Math.round(r.x + r.w / 2 - 33), sy = r.y + 4, hot = s.block >= 2 ? Gr : W;
-      G.drawSpr('skull', sx, sy, { '#': bo.flash > 0 ? hot : st.tx }, 3);
-      const eyeOn = bo.ph === 'tele' ? Math.floor(bo.pt * 14) % 2 : Math.floor(G.time * 4) % 2;
-      if (eyeOn) { const ec = bo.ph === 'tele' || bo.rage ? hot === W ? K : hot : st.tx; G.rect(sx + 15, sy + 27, 6, 6, ec); G.rect(sx + 45, sy + 27, 6, 6, ec); }
-      if (bo.ph === 'tele' && Math.floor(bo.pt * 12) % 2) G.drect(sx, sy, 66, 63, 4, st.tx, null);
-      const bw = r.w - 12, f = Math.round((bw - 2) * Math.max(0, bo.hp) / bo.max);
-      G.text('INFECTION', r.x + 6, r.y + r.h - 20, st.tx); G.text(String(Math.max(0, bo.hp)), r.x + r.w - 6, r.y + r.h - 20, st.tx, { al: 'r' });
-      G.box(r.x + 6, r.y + r.h - 10, bw, 7, st.tx); G.drect(r.x + 7, r.y + r.h - 9, f, 5, 10, st.tx, null);
-      if (bo.rage && Math.random() < 0.3) G.drect(x, y + G.irand(0, bo.h - 6), bo.w, 4, 8, G.pick(s.block >= 2 ? [Gr, B, W] : [B, W]), null); // tiras de glitch
+      // pantalla azul con el dibujo blanco (parpadea invertido justo antes de cada ataque)
+      const T = G.ctx(), ah = r.h - 24, inv = bo.ph === 'tele' && Math.floor(bo.pt * 14) % 2 === 1;
+      const art = bossArt(r.w, ah, bo.rage, inv), artI = bossArt(r.w, ah, bo.rage, !inv);
+      T.drawImage(art, r.x, r.y);
+      // glitch en cada golpe: tiras del dibujo desplazadas o invertidas (como el fondo glitch de la parte 1)
+      if (bo.gl > 0 || (bo.rage && Math.random() < 0.18)) {
+        const n = bo.gl > 0.2 ? 6 : bo.gl > 0 ? G.irand(2, 4) : 1;
+        for (let i = 0; i < n; i++) {
+          const gy = G.irand(0, ah - 3), gh = G.irand(2, 7), dx = G.irand(-12, 12) || 4, src = Math.random() < 0.35 ? artI : art;
+          T.drawImage(src, 0, gy, r.w, gh, r.x + dx, r.y + gy, r.w, gh);
+          if (dx > 0) G.rect(r.x, r.y + gy, dx, gh, B); // lo que queda al descolocarse
+        }
+        if (bo.gl > 0 && Math.random() < 0.5) { const gy = G.irand(0, bo.h - 6); G.drect(x, y + gy, bo.w, G.irand(2, 4), 8, G.pick([W, B]), null); }
+      }
+      // barra LOADING... que sube con cada golpe (al 100 % se borra el virus)
+      const prog = G.clamp(1 - Math.max(0, bo.hp) / bo.max, 0, 1), pct = Math.floor(prog * 100);
+      const ly = r.y + ah + 2, by = r.y + r.h - 11, bw = r.w - 12;
+      G.rect(r.x, r.y + ah, r.w, r.h - ah, B);
+      const lbl = bo.dying >= 0 ? 'DELETED' : 'LOADING' + '...'.slice(0, 1 + Math.floor(G.time * 3) % 3);
+      G.text(lbl, r.x + 6, ly + 1, W, { b: true }); G.text(pct + '%', r.x + r.w - 6, ly + 1, W, { al: 'r', b: true });
+      G.box(r.x + 6, by, bw, 9, W);
+      const n = Math.floor((bw - 4) / 4), f = Math.round(n * prog);
+      for (let i = 0; i < f; i++) G.rect(r.x + 8 + i * 4, by + 2, 3, 5, W);
+      if (f < n && Math.floor(G.time * 6) % 2) G.rect(r.x + 8 + f * 4, by + 2, 3, 5, L); // el siguiente trocito, esperando
     },
   };
 
