@@ -25,7 +25,7 @@
 
   // ================= MENÚ =================
   G.scenes.menu = {
-    items: [['JACK IN', 'play'], ['SECTORS', 'sectors'], ['SYSTEM', 'system'], ['MEMORY CORE', 'memory'], ['SHUTDOWN', 'shutdown']],
+    items: [['JACK IN', 'play'], ['SECTORS', 'sectors'], ['SYSTEM', 'system'], ['MEMORY CORE', 'memory'], ['PART 2 TEST', 'core'], ['SHUTDOWN', 'shutdown']],
     enter(p) { this.sel = p && p.sel != null ? p.sel : 0; this.act = -1; this.at = 0; this.track = -80; A().music('ambient'); A().intensity(0); A().loop('hum', false); G.fx.abBase = 1.6; },
     lay() {
       const top = G.safeT + 12, by = G.H - G.safeB - 40;
@@ -75,8 +75,8 @@
     },
     key(k) {
       if (this.act >= 0) return;
-      if (k === 'ArrowUp') { this.sel = (this.sel + 4) % 5; A().sfx('tap'); }
-      if (k === 'ArrowDown') { this.sel = (this.sel + 1) % 5; A().sfx('tap'); }
+      if (k === 'ArrowUp') { this.sel = (this.sel + this.items.length - 1) % this.items.length; A().sfx('tap'); }
+      if (k === 'ArrowDown') { this.sel = (this.sel + 1) % this.items.length; A().sfx('tap'); }
       if (k === 'Enter' || k === ' ') { this.act = this.sel; this.at = 0; A().sfx('tap'); }
     },
   };
@@ -464,7 +464,9 @@
         while (this.n < n) { this.n++; if (END_TXT[this.n - 1] !== ' ') A().sfx('type', 1.6); }
       }
       if (!this.off && t > this.tOff) { this.off = true; A().sfx('crtOff'); }
-      if (t > this.tOff + 0.75) G.go('power');
+      // tras apagarse intenta cerrar la app (con el juego instalado en Android suele dejar);
+      // si el navegador no lo permite, se queda apagada y un toque la vuelve a encender
+      if (t > this.tOff + 0.75 && !this.closed) { this.closed = true; A().stopMusic(); A().loop('hum', false); try { window.close(); } catch (e) { /* no se puede cerrar */ } }
     },
     draw(g) {
       const Wd = G.W, Hd = G.H, t = this.t;
@@ -500,9 +502,14 @@
         const k = Math.min(1, (t - this.tOff) / 0.5);
         if (k < 0.5) { const hh = Math.max(1, Math.round((1 - k * 2) * 18)); G.rect(0, Math.floor(Hd / 2 - hh / 2), Wd, hh, END_COL); }
         else { const w = Math.max(2, Math.round(Wd * (1 - (k - 0.5) * 2))); G.rect(Math.floor(Wd / 2 - w / 2), Math.floor(Hd / 2), w, 1, W); }
-        if (k >= 1) { T.save(); T.shadowColor = END_GLOW; T.shadowBlur = 5; G.rect(Math.floor(Wd / 2) - 1, Math.floor(Hd / 2) - 1, 2, 2, W); T.restore(); }
+        const dot = 1 - Math.max(0, (t - this.tOff - 0.5) / 1.6); // el puntito se va apagando
+        if (k >= 1 && dot > 0) { T.save(); T.globalAlpha = dot; T.shadowColor = END_GLOW; T.shadowBlur = 5; G.rect(Math.floor(Wd / 2) - 1, Math.floor(Hd / 2) - 1, 2, 2, W); T.restore(); }
+        // si la app no se ha podido cerrar: aviso discreto para volver a encender
+        if (this.closed && t > this.tOff + 2.4 && Math.floor(t * 1.5) % 2 === 0) G.text('TAP TO POWER ON', Wd / 2, Hd - G.safeB - 24, B, { al: 'c' });
       }
     },
+    tap() { if (!this.closed || this.t < this.tOff + 1.2) return; A().sfx('tap'); G.go('power'); },
+    key(k) { if (k === 'Enter' || k === ' ') this.tap(); },
   };
 
   // ================= GAME OVER: ERROR 404 =================

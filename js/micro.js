@@ -1382,7 +1382,7 @@
     const boss = this.round === this.rounds;
     const d = G.clamp(((this.round - 1) / Math.max(1, this.rounds - 1)) * 0.75 + this.tier * 0.12 + (boss ? 0.15 : 0), 0, 1);
     this.layoutMicro(this.round);
-    if (this.round > 1 || !this.wall) this.wall = G.randomWallpaper(this.block);
+    if (this.round > 1 || !this.wall) this.wall = this.pickWall();
     const acc = ACC[this.block], gr = this.gameR;
     const s = { r: { x: gr.x, y: gr.y, w: gr.w, h: gr.h }, d, t: 0, boss, block: this.block, round: this.round, rounds: this.rounds, st: this.mwin ? this.mwin.st : G.WSTYLES[['m1', 'b2', 'g3', 'g4'][this.block]], acc: acc[0], acc2: acc[1], accTx: acc[2], done: null, reason: '', hint: this.mg.hint };
     s.win = () => { if (!s.done) s.done = 'win'; };
@@ -1501,7 +1501,7 @@
       G.drawBtn(w.x + 50, w.y + w.h - 18, 40, 13, 'OK', K, W);
     }
   };
-  S.tapMicro = function (x, y) {
+  S.tapMicro = function (x, y, e) { // e: evento del puntero (pointerId para varios dedos)
     if (this.mphase === 'cmd' && this.mg.tapToStart && this.ms && this.pt > 0.3) { // tocar la ventana de la orden para empezar
       if (this.cmdRect && G.inR(x, y, this.cmdRect, 8)) { this.mphase = 'play'; this.pt = 0; A().sfx('tap'); G.pulse({ ab: 2 }); }
       return;
@@ -1509,15 +1509,15 @@
     if (this.mphase !== 'play' || !this.ms || this.ms.done) return;
     x -= this.foff.x; y -= this.foff.y;
     const s = this.ms;
-    if (this.mg.down) this.mg.down(s, x, y);
-    if (this.mg.tap) this.mg.tap(s, x, y);
+    if (this.mg.down) this.mg.down(s, x, y, e);
+    if (this.mg.tap) this.mg.tap(s, x, y, e);
   };
-  S.move = function (x, y) {
+  S.move = function (x, y, e) {
     if (this.cfg.mode !== 'micro' || this.state !== 'play' || this.mphase !== 'play' || !this.ms || this.ms.done) return;
-    if (this.mg.move) this.mg.move(this.ms, x - this.foff.x, y - this.foff.y);
+    if (this.mg.move) this.mg.move(this.ms, x - this.foff.x, y - this.foff.y, e);
   };
-  S.up = function (x, y) {
+  S.up = function (x, y, e) {
     if (this.cfg.mode !== 'micro' || this.state !== 'play' || this.mphase !== 'play' || !this.ms || this.ms.done) return;
-    if (this.mg.up) this.mg.up(this.ms, x - this.foff.x, y - this.foff.y);
+    if (this.mg.up) this.mg.up(this.ms, x - this.foff.x, y - this.foff.y, e);
   };
 })(window.G);

@@ -563,6 +563,17 @@
         const o = osc('sine', 70, t), og = gain(0); o.frequency.exponentialRampToValueAtTime(30, t + 0.4); perc(og.gain, t, 0.5, 0.45); o.connect(og); og.connect(sBus); o.start(t); o.stop(t + 0.5);
         break; }
       case 'lose': tone(t, 400, 0.6, 0.15, 'sawtooth', null, 40); break;
+      // ---- parte 2 (sonidos propios) ----
+      case 'pew': tone(t, 1800, 0.05, 0.035, 'square', null, 600); break; // disparo: muy bajito, suena muchas veces
+      case 'bounce': { const f = 520 + (p || 0) * 160; tone(t, f, 0.09, 0.14, 'square', null, f * 1.6); tone(t, f * 2, 0.05, 0.05, 'triangle'); break; }
+      case 'flip': { tone(t, 180, 0.05, 0.14, 'square', null, 90); const n = noise(t, 0.03), bp = bq('bandpass', 3200, 2), g = gain(0); perc(g.gain, t, 0.12, 0.03); n.connect(bp); bp.connect(g); g.connect(sBus); break; }
+      case 'splash': { const n = noise(t, 0.35), bp = bq('bandpass', 1200, 0.7), g = gain(0); perc(g.gain, t, 0.22, 0.3); n.connect(bp); bp.connect(g); g.connect(sBus); tone(t, 700, 0.12, 0.05, 'sine', null, 250); break; }
+      case 'reel': tone(t, 2400 + (p || 0) * 300, 0.02, 0.05, 'square'); break;
+      case 'zap': { const o = osc('sawtooth', 120, t), g = gain(0); for (let k = 0; k < 10; k++) o.frequency.setValueAtTime(80 + Math.random() * 900, t + k * 0.015); perc(g.gain, t, 0.12, 0.16); o.connect(g); g.connect(sBus); o.start(t); o.stop(t + 0.2); break; }
+      case 'step': tone(t, 300 + Math.random() * 60, 0.025, 0.05, 'square', null, 200); break;
+      case 'alarm': tone(t, 880, 0.12, 0.1, 'square'); tone(t + 0.13, 660, 0.14, 0.1, 'square'); break;
+      case 'lane': tone(t, 500, 0.06, 0.08, 'triangle', null, 900); break;
+      case 'warn': tone(t, 1320, 0.05, 0.09, 'square'); tone(t + 0.07, 1320, 0.05, 0.09, 'square'); break;
     }
   };
 

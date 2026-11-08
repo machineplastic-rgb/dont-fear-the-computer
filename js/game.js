@@ -12,10 +12,10 @@
   // ======================= ENTRADA =======================
   S.enter = function (p) {
     this.n = p.level; this.L = G.LEVELS[p.level];
-    this.tier = this.n === 13 ? 0 : (p.tier || 0);
+    this.tier = this.n === 13 || this.L.p2 ? 0 : (p.tier || 0);
     this.cfg = G.scaleConfig(this.L, this.tier);
     this.block = this.L.block;
-    this.wall = this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block);
+    this.wall = this.pickWall();
     this.stage = -1; this.stageFx = false;
     this.wins = []; this.ghosts = []; this.parts = []; this.pops = [];
     this.state = 'intro'; this.st = 0; this.elapsed = 0;
@@ -29,8 +29,10 @@
     if (this.cfg.mode === 'micro') this.initMicro();
   };
   S.exit = function () { A().muffle(false); };
+  // fondo: en la parte 2 es la placa del ordenador por dentro
+  S.pickWall = function () { return this.L.p2 ? G.coreWallpaper(G.irand(0, 5)) : this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block); };
   S.resize = function () {
-    this.wall = this.block >= 4 ? G.wallpaper(4, 1) : G.randomWallpaper(this.block);
+    this.wall = this.pickWall();
     const ar = area();
     this.wins.forEach((w) => { w.w = Math.min(w.w, ar.w); w.x = G.clamp(w.x, ar.x, ar.x + ar.w - w.w); w.y = G.clamp(w.y, ar.y, ar.y + ar.h - w.h); });
     if (this.intro) this.intro = this.makeIntro();
@@ -353,7 +355,7 @@
     const sv = G.save, l = sv.lv(this.n);
     this.prevBest = l.best; l.best = Math.max(l.best, this.score); l.clears++;
     this.oldTier = this.tier; l.tier = Math.min(3, Math.max(l.tier, this.tier + 1));
-    sv.data.unlocked = Math.max(sv.data.unlocked, Math.min(12, this.n + 1));
+    if (!this.L.p2) sv.data.unlocked = Math.max(sv.data.unlocked, Math.min(12, this.n + 1));
     sv.write();
     G.pulse({ flash: 0.4, flashCol: W });
     this.clearWin = this.makeClear();
@@ -379,7 +381,8 @@
     const w = Math.min(G.W - 16, 170), h = 138, ar = area();
     const win = { x: Math.floor(G.W / 2 - w / 2), y: Math.floor(ar.y + ar.h / 2 - h / 2), w, h, st: G.WSTYLES[['m1', 'b2', 'g3', 'g4'][this.block] || 'm1'], title: 'SECTOR CLEARED', stripes: true, xmode: 'none' };
     const bw = 60;
-    win.btns = this.n === 12 ? [] : [{ lbl: 'NEXT', x: win.x + w / 2 - bw - 4, y: win.y + h - 21, w: bw, h: 15, act: 'next' }, { lbl: 'SECTORS', x: win.x + w / 2 + 4, y: win.y + h - 21, w: bw, h: 15, act: 'sectors' }];
+    win.btns = this.n === 12 ? [] : [{ lbl: 'NEXT', x: win.x + w / 2 - bw - 4, y: win.y + h - 21, w: bw, h: 15, act: 'next' }, { lbl: this.L.p2 ? 'BACK' : 'SECTORS', x: win.x + w / 2 + 4, y: win.y + h - 21, w: bw, h: 15, act: 'sectors' }];
+    if (this.L.p2 && this.n >= G.P2_LAST) win.btns.shift(); // último juego de la prueba: solo volver
     return win;
   };
 
@@ -519,32 +522,33 @@
     lines.forEach(([a, b], i) => { G.text(a, r.x + 8, r.y + 34 + i * 9, s.tx); G.text(b, r.x + r.w - 8, r.y + 34 + i * 9, s.tx, { al: 'r' }); });
     if (this.score > this.prevBest) { if (Math.floor(this.st * 4) % 2 === 0) G.text('NEW RECORD', r.x + r.w / 2, r.y + 72, s.tx, { al: 'c', b: true }); }
     const nt = Math.min(3, this.oldTier + 1);
-    if (this.n !== 12) G.text(this.oldTier >= 3 ? 'OMEGA+ MASTERED' : 'NEXT RUN: ' + G.TIERS[nt], r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
+    if (this.L.p2) G.text('PART 2  -  TEST BUILD', r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
+    else if (this.n !== 12) G.text(this.oldTier >= 3 ? 'OMEGA+ MASTERED' : 'NEXT RUN: ' + G.TIERS[nt], r.x + r.w / 2, r.y + 84, s.tx, { al: 'c' });
     else G.text('SOMETHING IS WAKING UP', r.x + r.w / 2, r.y + 84 + (Math.random() < 0.2 ? 1 : 0), s.tx, { al: 'c' });
     w.btns.forEach((b) => G.drawBtn(b.x, b.y, b.w, b.h, b.lbl, s.tx, s.bd));
   };
 
   // ======================= TOQUES =======================
-  S.tap = function (x, y) {
+  S.tap = function (x, y, e) {
     if (this.cfg.mode === 'serpent') return this.tapSnake(x, y);
     if (this.state === 'intro') { if (this.t > 0.3) { A().sfx('tap'); this.begin(); } return; }
     if (this.state === 'paused') {
       const xr = G.xRect(this.pwin);
       if (G.inR(x, y, xr, 4)) return this.resume();
-      this.pbtns.forEach((b, i) => { if (G.inR(x, y, b, 2)) { this.pauseSel = i; if (i === 0) this.resume(); else if (i === 1) { A().sfx('tap'); G.go('game', { level: this.n, tier: this.tier }); } else { A().sfx('back'); G.go('sectors'); } } });
+      this.pbtns.forEach((b, i) => { if (G.inR(x, y, b, 2)) { this.pauseSel = i; if (i === 0) this.resume(); else if (i === 1) { A().sfx('tap'); G.go('game', { level: this.n, tier: this.tier }); } else { A().sfx('back'); G.go(this.L.p2 ? 'core' : 'sectors'); } } });
       return;
     }
     if (this.state === 'clear') {
       for (const b of this.clearWin.btns) if (G.inR(x, y, b, 2)) {
         A().sfx('tap');
-        if (b.act === 'next') { const nx = Math.min(12, this.n + 1); G.go('game', { level: nx, tier: G.save.lv(nx).tier }); }
-        else G.go('sectors');
+        if (b.act === 'next') { const nx = this.L.p2 ? Math.min(G.P2_LAST, this.n + 1) : Math.min(12, this.n + 1); G.go('game', { level: nx, tier: G.save.lv(nx).tier }); }
+        else G.go(this.L.p2 ? 'core' : 'sectors');
       }
       return;
     }
     if (this.state !== 'play') return;
     if (y >= G.taskbarY()) { if (G.inR(x, y, G.startRect(), 3)) { this.startDown = 0.15; this.pause(); } return; }
-    if (this.cfg.mode === 'micro') return this.tapMicro(x, y);
+    if (this.cfg.mode === 'micro') return this.tapMicro(x, y, e);
     const to = this.tiltOff(); x -= to.x; y -= to.y;
     for (let i = this.wins.length - 1; i >= 0; i--) {
       const w = this.wins[i];
